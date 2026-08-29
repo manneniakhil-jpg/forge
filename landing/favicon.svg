@@ -1,13 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <rect width="32" height="32" rx="8" fill="#041018"/>
-  <path d="M16 5 C12.1 5 9 8.3 9 12.5 C9 17.2 16 26.5 16 26.5 C16 26.5 23 17.2 23 12.5 C23 8.3 19.9 5 16 5 Z" fill="#0a2840" stroke="url(#favMark)" stroke-width="1.2"/>
-  <path d="M16 5.5 L12 15.5 H15.2 L13.2 23 L20.5 12.5 H17 L19 5.5 Z" fill="url(#favBolt)" stroke="#041018" stroke-width="0.5" stroke-linejoin="round"/>
+  <rect width="32" height="32" rx="7" fill="#041018"/>
+  <path
+    d="M16 5 C12.133 5 9 8.333 9 12.533 C9 17.2 16 26.333 16 26.333 C16 26.333 23 17.2 23 12.533 C23 8.333 19.867 5 16 5 Z"
+    fill="#0a2840"
+    stroke="url(#favMark)"
+    stroke-width="1.17"
+  />
+  <path
+    d="M16 5.667 L11.667 15.667 H15.167 L12.833 23 L21.667 12.667 H17.5 L20.333 5.667 Z"
+    fill="url(#favBolt)"
+    stroke="#041018"
+    stroke-width="0.5"
+    stroke-linejoin="round"
+  />
   <defs>
-    <linearGradient id="favMark" x1="9" y1="5" x2="23" y2="26.5" gradientUnits="userSpaceOnUse">
+    <linearGradient id="favMark" x1="9" y1="5" x2="23" y2="26.333" gradientUnits="userSpaceOnUse">
       <stop stop-color="#00e5ff"/>
       <stop offset="1" stop-color="#39ff14"/>
     </linearGradient>
-    <linearGradient id="favBolt" x1="12" y1="5.5" x2="20.5" y2="23" gradientUnits="userSpaceOnUse">
+    <linearGradient id="favBolt" x1="11.667" y1="5.667" x2="21.667" y2="23" gradientUnits="userSpaceOnUse">
       <stop stop-color="#fffef0"/>
       <stop offset="0.35" stop-color="#ffe566"/>
       <stop offset="1" stop-color="#39ff14"/>
