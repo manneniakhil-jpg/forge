@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
 import { seedDatabase } from "./seed";
+import { ensureH3Index } from "./station-store";
 
 const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "ev-companion.db");
@@ -21,6 +22,7 @@ export function getDb(): Database.Database {
 
   initSchema(db);
   seedDatabase(db);
+  ensureH3Index();
 
   return db;
 }
@@ -139,5 +141,15 @@ function initSchema(database: Database.Database) {
       network_id TEXT PRIMARY KEY,
       last_success_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS h3_cell_stations (
+      h3_index TEXT NOT NULL,
+      station_id TEXT NOT NULL,
+      indexed_at TEXT NOT NULL,
+      PRIMARY KEY (h3_index, station_id),
+      FOREIGN KEY (station_id) REFERENCES charging_stations(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_h3_cell_stations_h3 ON h3_cell_stations(h3_index);
   `);
 }

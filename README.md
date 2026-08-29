@@ -96,7 +96,7 @@ The app uses SQLite for accounts and sessions, so deploy to a platform with **pe
 2. Go to [railway.app](https://railway.app) and create a new project from your repo.
 3. Railway reads `railway.toml` and builds the `Dockerfile` automatically.
 4. Add a **volume** mounted at `/data` (required so user accounts persist).
-5. Set environment variable: `DATA_DIR=/data`
+5. Set environment variables: `DATA_DIR=/data` and `GOOGLE_MAPS_API_KEY=<your Places API key>`
 6. Generate a public domain under **Settings → Networking**.
 
 Your live URL will look like `https://ev-companion-production.up.railway.app`.

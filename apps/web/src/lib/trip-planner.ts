@@ -1,7 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import {
   computeUsableRangeKm,
-  estimateChargeDurationMin,
   haversineKm,
   type ChargeStop,
   type ConnectorStandard,
@@ -9,13 +8,12 @@ import {
 } from "@ev/domain";
 import {
   findNearestCompatibleStationAsync,
+  getStationById,
+  listCorridorAlternatives,
   queryCorridorAsync,
   sampleRoutePoints,
 } from "./chargers";
-import {
-  bestCompatibleConnector,
-  pickBestStation,
-} from "./trip-station-scoring";
+import { buildChargeStop, pickBestTripStop } from "./station-selector";
 import {
   fetchRoadRoute,
   mergeRouteSegments,
@@ -40,7 +38,7 @@ function findSliceEnd(
   return coordinates.length - 1;
 }
 
-interface TripInput {
+export interface TripInput {
   origin: { lat: number; lon: number; label: string };
   destination: { lat: number; lon: number; label: string };
   departureSocPct: number;
@@ -50,14 +48,19 @@ interface TripInput {
   connectorStandards: ConnectorStandard[];
 }
 
+interface PlannerState {
+  chargeStops: ChargeStop[];
+  routeSegments: Array<Array<{ lat: number; lon: number }>>;
+  visitedStationIds: Set<string>;
+  currentPos: { lat: number; lon: number; label: string };
+  currentSoc: number;
+  totalDistanceKm: number;
+  totalDrivingMin: number;
+}
+
 function maxComfortLegKm(input: TripInput): number {
   return (
-    computeUsableRangeKm(
-      80,
-      input.reserveSocPct,
-      input.batteryKwh,
-      input.efficiencyWhKm
-    ) * 0.85
+    computeUsableRangeKm(80, input.reserveSocPct, input.batteryKwh, input.efficiencyWhKm) * 0.85
   );
 }
 
@@ -68,7 +71,7 @@ function socNeededForDistanceKm(input: TripInput, distanceKm: number): number {
   );
 }
 
-function targetDepartureSoc(
+export function targetDepartureSoc(
   arrivalSoc: number,
   remainingDistanceKm: number,
   input: TripInput
@@ -83,22 +86,39 @@ function targetDepartureSoc(
   return Math.min(100, Math.max(arrivalSoc + 10, Math.ceil(needed)));
 }
 
-export async function planTrip(
-  input: TripInput
-): Promise<TripPlan | { error: string; details?: Record<string, unknown> }> {
-  const chargeStops: ChargeStop[] = [];
-  const routeSegments: Array<Array<{ lat: number; lon: number }>> = [];
-  const visitedStationIds = new Set<string>();
-  let currentPos = input.origin;
-  let currentSoc = input.departureSocPct;
-  let totalDistanceKm = 0;
-  let totalDrivingMin = 0;
-  const maxStops = 10;
+function buildPlan(
+  input: TripInput,
+  state: PlannerState,
+  destSoc: number,
+  planId?: string
+): TripPlan {
+  const chargingMin = state.chargeStops.reduce((sum, s) => sum + s.chargingDurationMin, 0);
+  const merged = mergeRouteSegments(state.routeSegments);
 
-  for (let attempt = 0; attempt <= maxStops; attempt++) {
-    const route = await fetchRoadRoute(currentPos, input.destination);
+  return {
+    id: planId ?? uuidv4(),
+    origin: input.origin,
+    destination: input.destination,
+    chargeStops: state.chargeStops,
+    totalDistanceKm: Math.round(state.totalDistanceKm * 10) / 10,
+    totalDrivingMin: state.totalDrivingMin,
+    totalChargingMin: chargingMin,
+    destinationSocPct: Math.max(input.reserveSocPct, destSoc),
+    reserveSocPct: input.reserveSocPct,
+    routeCoordinates: merged.map((p) => [p.lat, p.lon] as [number, number]),
+    routingSource: "osrm",
+  };
+}
+
+async function continuePlanning(
+  input: TripInput,
+  state: PlannerState,
+  maxStops: number
+): Promise<TripPlan | { error: string; details?: Record<string, unknown> }> {
+  for (let attempt = state.chargeStops.length; attempt <= maxStops; attempt++) {
+    const route = await fetchRoadRoute(state.currentPos, input.destination);
     if ("error" in route) {
-      if (attempt === 0) return { error: route.error };
+      if (state.chargeStops.length === 0) return { error: route.error };
       return {
         error: "NO_VIABLE_ROUTE",
         details: { reason: "Routing failed after charge stop" },
@@ -106,30 +126,23 @@ export async function planTrip(
     }
 
     const usableRange = computeUsableRangeKm(
-      currentSoc,
+      state.currentSoc,
       input.reserveSocPct,
       input.batteryKwh,
       input.efficiencyWhKm
     );
 
     if (route.distanceKm <= usableRange) {
-      routeSegments.push(route.coordinates);
-      totalDistanceKm += route.distanceKm;
-      totalDrivingMin += route.durationMin;
+      state.routeSegments.push(route.coordinates);
+      state.totalDistanceKm += route.distanceKm;
+      state.totalDrivingMin += route.durationMin;
       const destSoc = socAfterDistance(
-        currentSoc,
+        state.currentSoc,
         route.distanceKm,
         input.batteryKwh,
         input.efficiencyWhKm
       );
-      return buildPlan(
-        input,
-        chargeStops,
-        totalDistanceKm,
-        totalDrivingMin,
-        Math.max(input.reserveSocPct, destSoc),
-        routeSegments
-      );
+      return buildPlan(input, state, Math.max(input.reserveSocPct, destSoc));
     }
 
     if (attempt >= maxStops) {
@@ -144,71 +157,67 @@ export async function planTrip(
     }
 
     const driveBeforeChargeKm = Math.min(usableRange * 0.85, route.distanceKm * 0.9);
-    routeSegments.push(
+    state.routeSegments.push(
       route.coordinates.slice(0, findSliceEnd(route.coordinates, driveBeforeChargeKm) + 1)
     );
-    totalDistanceKm += driveBeforeChargeKm;
-    totalDrivingMin += Math.round((driveBeforeChargeKm / route.distanceKm) * route.durationMin);
+    state.totalDistanceKm += driveBeforeChargeKm;
+    state.totalDrivingMin += Math.round(
+      (driveBeforeChargeKm / route.distanceKm) * route.durationMin
+    );
 
     const needChargeAt = pointAtDistance(route.coordinates, driveBeforeChargeKm);
     const routeSamples = sampleRoutePoints(route.coordinates, driveBeforeChargeKm + 60);
-    const legDist = driveBeforeChargeKm;
     const arrivalSoc = Math.max(
       input.reserveSocPct,
-      socAfterDistance(currentSoc, legDist, input.batteryKwh, input.efficiencyWhKm)
+      socAfterDistance(
+        state.currentSoc,
+        driveBeforeChargeKm,
+        input.batteryKwh,
+        input.efficiencyWhKm
+      )
     );
     const remainingDistanceKm = Math.max(0, route.distanceKm - driveBeforeChargeKm);
 
-    let nearest: { station: import("@ev/domain").ChargingStation; distanceKm: number } | null =
+    let picked: { station: import("@ev/domain").ChargingStation; distanceKm: number } | null =
       null;
 
     for (const radius of [50, 90, 150]) {
       const maxDetourKm = Math.min(radius, 55);
-      const alongRoute = (await queryCorridorAsync(
+      const alongRoute = await queryCorridorAsync(
         routeSamples,
         input.connectorStandards,
         radius,
         needChargeAt
-      ))
-        .filter((station) => !visitedStationIds.has(station.id))
-        .map((station) => ({
-          station,
-          distanceKm: haversineKm(
-            needChargeAt.lat,
-            needChargeAt.lon,
-            station.latitude,
-            station.longitude
-          ),
-        }))
-        .filter((candidate) => candidate.distanceKm <= maxDetourKm);
-      if (alongRoute.length > 0) {
-        nearest = pickBestStation(
-          alongRoute,
-          needChargeAt,
-          input.connectorStandards,
-          arrivalSoc,
-          input.reserveSocPct
-        );
+      );
+
+      const best = pickBestTripStop(alongRoute, {
+        needChargeAt,
+        connectorStandards: input.connectorStandards,
+        arrivalSocPct: arrivalSoc,
+        reserveSocPct: input.reserveSocPct,
+        maxDetourKm,
+        excludeIds: state.visitedStationIds,
+      });
+
+      if (best) {
+        picked = { station: best.station, distanceKm: best.distanceKm };
         break;
       }
+
       const fallback = await findNearestCompatibleStationAsync(
         needChargeAt,
         input.connectorStandards,
         radius
       );
-      if (fallback && !visitedStationIds.has(fallback.station.id)) {
-        nearest = pickBestStation(
-          [fallback],
-          needChargeAt,
-          input.connectorStandards,
-          arrivalSoc,
-          input.reserveSocPct
-        );
+      if (fallback && !state.visitedStationIds.has(fallback.station.id)) {
+        if (fallback.distanceKm <= maxDetourKm) {
+          picked = fallback;
+          break;
+        }
       }
-      if (nearest) break;
     }
 
-    if (!nearest) {
+    if (!picked) {
       return {
         error: "NO_VIABLE_ROUTE",
         details: {
@@ -219,67 +228,252 @@ export async function planTrip(
       };
     }
 
-    const chosenStation = nearest.station;
-    visitedStationIds.add(chosenStation.id);
     const departureSoc = targetDepartureSoc(arrivalSoc, remainingDistanceKm, input);
-    const connector = bestCompatibleConnector(chosenStation, input.connectorStandards);
-    const maxPower = connector?.maxPowerKw ?? Math.max(...chosenStation.connectors.map((c) => c.maxPowerKw));
-
-    chargeStops.push({
-      stationId: chosenStation.id,
-      stationName: chosenStation.operatorName,
-      arrivalSocPct: arrivalSoc,
-      departureSocPct: departureSoc,
-      chargingDurationMin: estimateChargeDurationMin(
+    state.visitedStationIds.add(picked.station.id);
+    state.chargeStops.push(
+      buildChargeStop(
+        picked.station,
         arrivalSoc,
         departureSoc,
-        input.batteryKwh,
-        maxPower
-      ),
-      latitude: chosenStation.latitude,
-      longitude: chosenStation.longitude,
-      maxPowerKw: connector?.maxPowerKw ?? maxPower,
-      connectorStandard: connector?.standard,
-      availability: connector?.availability,
-      detourKm: Math.round(nearest.distanceKm * 10) / 10,
-    });
+        picked.distanceKm,
+        input.connectorStandards,
+        input.batteryKwh
+      )
+    );
 
-    currentPos = {
-      lat: chosenStation.latitude,
-      lon: chosenStation.longitude,
-      label: chosenStation.operatorName,
+    state.currentPos = {
+      lat: picked.station.latitude,
+      lon: picked.station.longitude,
+      label: picked.station.operatorName,
     };
-    currentSoc = departureSoc;
+    state.currentSoc = departureSoc;
   }
 
+  return { error: "NO_VIABLE_ROUTE", details: { reason: "planning_exhausted" } };
+}
+
+async function replanWithPrefixStops(
+  input: TripInput,
+  prefixStops: ChargeStop[],
+  planId?: string
+): Promise<TripPlan | { error: string; details?: Record<string, unknown> }> {
+  const state: PlannerState = {
+    chargeStops: [],
+    routeSegments: [],
+    visitedStationIds: new Set<string>(),
+    currentPos: input.origin,
+    currentSoc: input.departureSocPct,
+    totalDistanceKm: 0,
+    totalDrivingMin: 0,
+  };
+
+  for (const stop of prefixStops) {
+    const station = getStationById(stop.stationId);
+    if (!station) {
+      return { error: "STATION_NOT_FOUND", details: { stationId: stop.stationId } };
+    }
+
+    const leg = await fetchRoadRoute(state.currentPos, {
+      lat: station.latitude,
+      lon: station.longitude,
+    });
+    if ("error" in leg) {
+      return { error: leg.error };
+    }
+
+    state.routeSegments.push(leg.coordinates);
+    state.totalDistanceKm += leg.distanceKm;
+    state.totalDrivingMin += leg.durationMin;
+
+    const arrivalSoc = Math.max(
+      input.reserveSocPct,
+      socAfterDistance(
+        state.currentSoc,
+        leg.distanceKm,
+        input.batteryKwh,
+        input.efficiencyWhKm
+      )
+    );
+
+    state.chargeStops.push(
+      buildChargeStop(
+        station,
+        arrivalSoc,
+        stop.departureSocPct,
+        haversineKm(
+          state.currentPos.lat,
+          state.currentPos.lon,
+          station.latitude,
+          station.longitude
+        ),
+        input.connectorStandards,
+        input.batteryKwh
+      )
+    );
+
+    state.visitedStationIds.add(station.id);
+    state.currentPos = {
+      lat: station.latitude,
+      lon: station.longitude,
+      label: station.operatorName,
+    };
+    state.currentSoc = stop.departureSocPct;
+  }
+
+  const result = await continuePlanning(input, state, prefixStops.length + 10);
+  if ("error" in result) return result;
+  return { ...result, id: planId ?? result.id };
+}
+
+export async function planTrip(
+  input: TripInput
+): Promise<TripPlan | { error: string; details?: Record<string, unknown> }> {
+  return replanWithPrefixStops(input, []);
+}
+
+function positionBeforeStop(
+  input: TripInput,
+  plan: TripPlan,
+  stopIndex: number
+): { pos: { lat: number; lon: number; label: string }; soc: number } {
+  if (stopIndex === 0) {
+    return { pos: input.origin, soc: input.departureSocPct };
+  }
+  const prev = plan.chargeStops[stopIndex - 1];
   return {
-    error: "NO_VIABLE_ROUTE",
-    details: { reason: "planning_exhausted" },
+    pos: { lat: prev.latitude, lon: prev.longitude, label: prev.stationName },
+    soc: prev.departureSocPct,
   };
 }
 
-function buildPlan(
+export async function getStopAlternatives(
   input: TripInput,
-  chargeStops: ChargeStop[],
-  totalDistanceKm: number,
-  totalDrivingMin: number,
-  destSoc: number,
-  routeSegments: Array<Array<{ lat: number; lon: number }>>
-): TripPlan {
-  const chargingMin = chargeStops.reduce((sum, s) => sum + s.chargingDurationMin, 0);
-  const merged = mergeRouteSegments(routeSegments);
+  plan: TripPlan,
+  stopIndex: number
+) {
+  if (stopIndex < 0 || stopIndex >= plan.chargeStops.length) {
+    return { error: "INVALID_STOP_INDEX" as const };
+  }
+
+  const { pos, soc } = positionBeforeStop(input, plan, stopIndex);
+  const route = await fetchRoadRoute(pos, input.destination);
+  if ("error" in route) {
+    return { error: route.error };
+  }
+
+  const usableRange = computeUsableRangeKm(
+    soc,
+    input.reserveSocPct,
+    input.batteryKwh,
+    input.efficiencyWhKm
+  );
+  const driveBeforeChargeKm = Math.min(usableRange * 0.85, route.distanceKm * 0.9);
+  const needChargeAt = pointAtDistance(route.coordinates, driveBeforeChargeKm);
+  const arrivalSoc = Math.max(
+    input.reserveSocPct,
+    socAfterDistance(soc, driveBeforeChargeKm, input.batteryKwh, input.efficiencyWhKm)
+  );
+
+  const excludeIds = new Set(
+    plan.chargeStops.filter((_, i) => i !== stopIndex).map((s) => s.stationId)
+  );
+  const alternatives = await listCorridorAlternatives(
+    needChargeAt,
+    input.connectorStandards,
+    arrivalSoc,
+    input.reserveSocPct,
+    excludeIds
+  );
+
+  const currentStation = getStationById(plan.chargeStops[stopIndex].stationId);
+  const withCurrent =
+    currentStation &&
+    !alternatives.some((a) => a.station.id === currentStation.id)
+      ? [
+          {
+            station: currentStation,
+            distanceKm: haversineKm(
+              needChargeAt.lat,
+              needChargeAt.lon,
+              currentStation.latitude,
+              currentStation.longitude
+            ),
+            score: Number.POSITIVE_INFINITY,
+            maxPowerKw: Math.max(
+              ...currentStation.connectors
+                .filter((c) => input.connectorStandards.includes(c.standard))
+                .map((c) => c.maxPowerKw),
+              0
+            ),
+          },
+          ...alternatives,
+        ]
+      : alternatives;
 
   return {
-    id: uuidv4(),
-    origin: input.origin,
-    destination: input.destination,
-    chargeStops,
-    totalDistanceKm: Math.round(totalDistanceKm * 10) / 10,
-    totalDrivingMin,
-    totalChargingMin: chargingMin,
-    destinationSocPct: Math.max(input.reserveSocPct, destSoc),
-    reserveSocPct: input.reserveSocPct,
-    routeCoordinates: merged.map((p) => [p.lat, p.lon] as [number, number]),
-    routingSource: "osrm",
+    needChargeAt,
+    arrivalSocPct: arrivalSoc,
+    alternatives: withCurrent,
+    currentStationId: plan.chargeStops[stopIndex].stationId,
   };
+}
+
+/** Replace one charge stop; keep prefix fixed; replan suffix (Req 7.9). */
+export async function replaceTripStop(
+  input: TripInput,
+  plan: TripPlan,
+  stopIndex: number,
+  newStationId: string
+): Promise<TripPlan | { error: string; details?: Record<string, unknown> }> {
+  if (stopIndex < 0 || stopIndex >= plan.chargeStops.length) {
+    return { error: "INVALID_STOP_INDEX" };
+  }
+
+  const station = getStationById(newStationId);
+  if (!station) {
+    return { error: "STATION_NOT_FOUND" };
+  }
+
+  const hasConnector = station.connectors.some((c) =>
+    input.connectorStandards.includes(c.standard)
+  );
+  if (!hasConnector) {
+    return { error: "INCOMPATIBLE_STATION" };
+  }
+
+  const { pos, soc } = positionBeforeStop(input, plan, stopIndex);
+  const legToStation = await fetchRoadRoute(pos, {
+    lat: station.latitude,
+    lon: station.longitude,
+  });
+  if ("error" in legToStation) {
+    return { error: legToStation.error };
+  }
+
+  const prefixStops = plan.chargeStops.slice(0, stopIndex);
+  const routeFromStation = await fetchRoadRoute(
+    { lat: station.latitude, lon: station.longitude },
+    input.destination
+  );
+  if ("error" in routeFromStation) {
+    return { error: routeFromStation.error };
+  }
+
+  const arrivalSoc = Math.max(
+    input.reserveSocPct,
+    socAfterDistance(soc, legToStation.distanceKm, input.batteryKwh, input.efficiencyWhKm)
+  );
+  const departureSoc = targetDepartureSoc(arrivalSoc, routeFromStation.distanceKm, input);
+  const detourKm = haversineKm(pos.lat, pos.lon, station.latitude, station.longitude);
+
+  const replacedStop = buildChargeStop(
+    station,
+    arrivalSoc,
+    departureSoc,
+    detourKm,
+    input.connectorStandards,
+    input.batteryKwh
+  );
+
+  return replanWithPrefixStops(input, [...prefixStops, replacedStop], plan.id);
 }

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Route } from "lucide-react";
 import { Button, Card, Input, Label } from "@/components/ui";
+import { ChargeStopPicker } from "@/components/charge-stop-picker";
 import { TripNavigationPanel } from "@/components/trip-navigation-panel";
 import { PlaceSearchField, type GeocodeHit } from "@/components/place-search-field";
 import { chargeStopReason } from "@/lib/trip-station-scoring";
@@ -48,6 +49,7 @@ export default function TripsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [originLocating, setOriginLocating] = useState(true);
+  const [swapStopIndex, setSwapStopIndex] = useState<number | null>(null);
   const planRequestRef = useRef(0);
   const departureSocRef = useRef(departureSoc);
   const reserveSocRef = useRef(reserveSoc);
@@ -304,10 +306,20 @@ export default function TripsPage() {
               </p>
               <ol className="space-y-3">
                 {plan.chargeStops.map((stop, i) => (
-                  <li key={stop.stationId} className="rounded-xl border border-slate-700 p-3">
-                    <p className="font-medium">
-                      Stop {i + 1}: {stop.stationName}
-                    </p>
+                  <li key={`${stop.stationId}-${i}`} className="rounded-xl border border-slate-700 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-medium">
+                        Stop {i + 1}: {stop.stationName}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="shrink-0 px-3 py-1.5 text-xs min-h-[36px]"
+                        onClick={() => setSwapStopIndex(i)}
+                      >
+                        Change
+                      </Button>
+                    </div>
                     <p className="mt-1 text-sm text-slate-400">
                       Arrive {stop.arrivalSocPct}% → Depart {stop.departureSocPct}% ·{" "}
                       {stop.chargingDurationMin} min
@@ -331,6 +343,17 @@ export default function TripsPage() {
             </div>
           )}
         </Card>
+      )}
+
+      {plan && swapStopIndex != null && (
+        <ChargeStopPicker
+          planId={plan.id}
+          stopIndex={swapStopIndex}
+          stopName={plan.chargeStops[swapStopIndex]?.stationName ?? "Stop"}
+          departureSocPct={parseInt(departureSoc, 10)}
+          onSelect={setPlan}
+          onClose={() => setSwapStopIndex(null)}
+        />
       )}
     </div>
   );

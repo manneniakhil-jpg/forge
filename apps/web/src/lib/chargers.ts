@@ -1,12 +1,23 @@
 import { getDb } from "./db";
 import { seedStationsNearPoint } from "./seed";
-import { fetchNearbyEvStations, getCachedGoogleStation, isGooglePlacesConfigured } from "./google-places";
+import {
+  fetchNearbyEvStations,
+  getCachedGoogleStation,
+  isGooglePlacesConfigured,
+} from "./google-places";
+import { coveringCellIndexes } from "./h3-index";
+import {
+  ensureH3Index,
+  getStationIdsInCells,
+  loadStation,
+  searchStationsInRadius,
+  upsertStation,
+} from "./station-store";
+import { filterStationsAlongCorridor, rankNearbyStations, rankTripStopCandidates, type NearbySearchContext } from "./station-selector";
 import {
   haversineKm,
-  resolveAvailability,
   type ConnectorStandard,
   type ChargingStation,
-  type AvailabilityStatus,
 } from "@ev/domain";
 
 interface SearchParams {
@@ -20,110 +31,60 @@ interface SearchParams {
   ownerId?: string;
 }
 
-function loadStation(stationId: string): ChargingStation | null {
-  const db = getDb();
-  const station = db
-    .prepare("SELECT * FROM charging_stations WHERE id = ?")
-    .get(stationId) as Record<string, unknown> | undefined;
-  if (!station) return null;
-
-  const connectors = db
-    .prepare("SELECT * FROM connectors WHERE station_id = ?")
-    .all(stationId) as Array<Record<string, unknown>>;
-
-  const feedRow = db
-    .prepare("SELECT last_success_at FROM feed_health WHERE network_id = ?")
-    .get(station.network_id as string) as { last_success_at: string } | undefined;
-
-  const lastFeedUpdate = (feedRow?.last_success_at ?? station.last_feed_update) as string;
-
-  return {
-    id: station.id as string,
-    operatorName: station.operator_name as string,
-    latitude: station.latitude as number,
-    longitude: station.longitude as number,
-    networkId: station.network_id as string,
-    accessRules: (station.access_rules as string) || "Unknown",
-    remoteStartSupported: Boolean(station.remote_start),
-    lastFeedUpdate,
-    connectors: connectors.map((c) => ({
-      id: c.id as string,
-      standard: c.standard as ConnectorStandard,
-      maxPowerKw: c.max_power_kw as number,
-      availability: resolveAvailability(
-        c.availability as string,
-        lastFeedUpdate
-      ) as AvailabilityStatus,
-      pricePerKwh:
-        c.price_per_kwh === null ? ("Unknown" as const) : (c.price_per_kwh as number),
-      currency: (c.currency as string) || "USD",
-    })),
-  };
-}
-
-function matchesFilters(station: ChargingStation, params: SearchParams): boolean {
-  if (params.networkId && station.networkId !== params.networkId) return false;
-
-  const matchingConnectors = station.connectors.filter((c) => {
-    if (params.connectorStandard && c.standard !== params.connectorStandard) return false;
-    if (params.minPowerKw && c.maxPowerKw < params.minPowerKw) return false;
-    if (params.priceCeiling !== undefined) {
-      if (c.pricePerKwh === "Unknown") return false;
-      if (c.pricePerKwh > params.priceCeiling) return false;
-    }
-    return true;
-  });
-
-  return matchingConnectors.length > 0;
-}
-
 export type ChargerSearchResult = {
   stations: Array<ChargingStation & { distanceKm: number; outsideRadius?: boolean }>;
   fallbackUsed: boolean;
   regionalDemoAdded: boolean;
-  dataSource: "google_places" | "local_seed";
+  dataSource: "google_places" | "local_seed" | "h3_cache";
 };
 
-function searchLocalChargers(
+function searchContext(params: SearchParams): NearbySearchContext {
+  return {
+    lat: params.lat,
+    lon: params.lon,
+    radiusKm: params.radiusKm,
+    connectorStandard: params.connectorStandard,
+    minPowerKw: params.minPowerKw,
+    networkId: params.networkId,
+    priceCeiling: params.priceCeiling,
+  };
+}
+
+/** H3 cell union → exact haversine refine → filter → sort (Ev_maps DD-4). */
+function searchLocalChargersH3(
   params: SearchParams,
   options: { allowRegionalSeed?: boolean } = {}
 ): Omit<ChargerSearchResult, "dataSource"> {
   const { allowRegionalSeed = true } = options;
-  const db = getDb();
-  const allIds = db.prepare("SELECT id FROM charging_stations").all() as Array<{ id: string }>;
+  ensureH3Index();
 
-  const withDistance = allIds
-    .map(({ id }) => {
-      const station = loadStation(id);
-      if (!station) return null;
-      const distanceKm = haversineKm(params.lat, params.lon, station.latitude, station.longitude);
-      return { ...station, distanceKm };
-    })
-    .filter((s): s is ChargingStation & { distanceKm: number } => s !== null)
-    .filter((s) => matchesFilters(s, params))
-    .sort((a, b) => {
-      if (a.distanceKm !== b.distanceKm) return a.distanceKm - b.distanceKm;
-      return a.operatorName.localeCompare(b.operatorName);
-    });
+  let candidates = searchStationsInRadius(params.lat, params.lon, params.radiusKm);
+  let ranked = rankNearbyStations(candidates, searchContext(params)).slice(0, 200);
 
-  const inRadius = withDistance.filter((s) => s.distanceKm <= params.radiusKm).slice(0, 200);
-
-  if (inRadius.length > 0) {
-    return { stations: inRadius, fallbackUsed: false, regionalDemoAdded: false };
+  if (ranked.length > 0) {
+    return { stations: ranked, fallbackUsed: false, regionalDemoAdded: false };
   }
 
-  const within250 = withDistance.filter((s) => s.distanceKm <= 250);
+  const wideCandidates = searchStationsInRadius(params.lat, params.lon, 250);
+  const within250 = rankNearbyStations(wideCandidates, {
+    ...searchContext(params),
+    radiusKm: 250,
+  });
 
   if (within250.length === 0 && allowRegionalSeed) {
+    const db = getDb();
     const added = seedStationsNearPoint(db, params.lat, params.lon);
     if (added) {
-      const retry = searchLocalChargers(params, { allowRegionalSeed: false });
-      return { ...retry, regionalDemoAdded: true };
+      ensureH3Index();
+      candidates = searchStationsInRadius(params.lat, params.lon, params.radiusKm);
+      ranked = rankNearbyStations(candidates, searchContext(params)).slice(0, 200);
+      if (ranked.length > 0) {
+        return { stations: ranked, fallbackUsed: false, regionalDemoAdded: true };
+      }
     }
   }
 
   const fallback = within250.slice(0, 5).map((s) => ({ ...s, outsideRadius: true }));
-
   return {
     stations: fallback,
     fallbackUsed: fallback.length > 0,
@@ -145,16 +106,13 @@ export async function searchChargers(
         minPowerKw: params.minPowerKw,
       });
 
-      let filtered = googleStations;
-      if (params.priceCeiling !== undefined) {
-        filtered = googleStations.filter((s) =>
-          s.connectors.some(
-            (c) => c.pricePerKwh !== "Unknown" && c.pricePerKwh <= params.priceCeiling!
-          )
-        );
+      for (const station of googleStations) {
+        upsertStation(station);
       }
 
-      const inRadius = filtered.filter((s) => s.distanceKm <= params.radiusKm).slice(0, 200);
+      const ranked = rankNearbyStations(googleStations, searchContext(params));
+      const inRadius = ranked.slice(0, 200);
+
       if (inRadius.length > 0) {
         return {
           stations: inRadius,
@@ -164,9 +122,9 @@ export async function searchChargers(
         };
       }
 
-      if (filtered.length > 0) {
+      if (ranked.length > 0) {
         return {
-          stations: filtered.slice(0, 5).map((s) => ({ ...s, outsideRadius: true })),
+          stations: ranked.slice(0, 5).map((s) => ({ ...s, outsideRadius: true })),
           fallbackUsed: true,
           regionalDemoAdded: false,
           dataSource: "google_places",
@@ -177,7 +135,7 @@ export async function searchChargers(
     }
   }
 
-  return { ...searchLocalChargers(params, options), dataSource: "local_seed" };
+  return { ...searchLocalChargersH3(params, options), dataSource: "h3_cache" };
 }
 
 export function getFavorites(ownerId: string): string[] {
@@ -207,23 +165,12 @@ export function addFavorite(ownerId: string, stationId: string): boolean {
 }
 
 export function getStationById(stationId: string): ChargingStation | null {
+  const fromDb = loadStation(stationId);
+  if (fromDb) return fromDb;
   if (stationId.startsWith("gmap_")) {
     return getCachedGoogleStation(stationId);
   }
-  return loadStation(stationId);
-}
-
-function stationNearCorridor(
-  station: { latitude: number; longitude: number },
-  points: Array<{ lat: number; lon: number }>,
-  corridorKm: number
-): boolean {
-  let minDist = Infinity;
-  for (const pt of points) {
-    const d = haversineKm(pt.lat, pt.lon, station.latitude, station.longitude);
-    if (d < minDist) minDist = d;
-  }
-  return minDist <= corridorKm;
+  return null;
 }
 
 function pickCorridorSamplePoints(
@@ -239,44 +186,35 @@ function pickCorridorSamplePoints(
   return picked;
 }
 
+/** H3-backed corridor query: union cells along route samples, refine with haversine. */
 export function queryCorridor(
   points: Array<{ lat: number; lon: number }>,
   connectorStandards: ConnectorStandard[],
   corridorKm = 30
 ): ChargingStation[] {
-  const db = getDb();
-  const allIds = db.prepare("SELECT id, latitude, longitude FROM charging_stations").all() as Array<{
-    id: string;
-    latitude: number;
-    longitude: number;
-  }>;
+  if (points.length === 0) return [];
+  ensureH3Index();
 
-  const results: ChargingStation[] = [];
-  const seen = new Set<string>();
-
-  for (const row of allIds) {
-    let minDist = Infinity;
-    for (const pt of points) {
-      const d = haversineKm(pt.lat, pt.lon, row.latitude, row.longitude);
-      if (d < minDist) minDist = d;
-    }
-    if (minDist > corridorKm) continue;
-
-    const station = loadStation(row.id);
-    if (!station || seen.has(station.id)) continue;
-
-    const hasMatching = station.connectors.some(
-      (c) =>
-        connectorStandards.includes(c.standard) &&
-        (c.availability === "Available" || c.availability === "Unknown")
-    );
-    if (hasMatching) {
-      seen.add(station.id);
-      results.push(station);
+  const cellSet = new Set<string>();
+  for (const pt of points) {
+    for (const cell of coveringCellIndexes(pt.lat, pt.lon, corridorKm)) {
+      cellSet.add(cell);
     }
   }
 
-  return results;
+  const stationIds = getStationIdsInCells([...cellSet]);
+  const stations: ChargingStation[] = [];
+  const seen = new Set<string>();
+
+  for (const stationId of stationIds) {
+    if (seen.has(stationId)) continue;
+    const station = loadStation(stationId);
+    if (!station) continue;
+    seen.add(stationId);
+    stations.push(station);
+  }
+
+  return filterStationsAlongCorridor(stations, points, corridorKm, connectorStandards);
 }
 
 export async function queryCorridorAsync(
@@ -302,14 +240,11 @@ export async function queryCorridorAsync(
             connectorStandard: standard,
           });
           for (const station of googleStations) {
+            upsertStation(station);
             if (seen.has(station.id)) continue;
-            if (!stationNearCorridor(station, points, corridorKm)) continue;
-            const hasMatching = station.connectors.some(
-              (c) =>
-                connectorStandards.includes(c.standard) &&
-                (c.availability === "Available" || c.availability === "Unknown")
-            );
-            if (!hasMatching) continue;
+            if (!filterStationsAlongCorridor([station], points, corridorKm, connectorStandards).length) {
+              continue;
+            }
             seen.add(station.id);
             results.push(station);
           }
@@ -326,6 +261,7 @@ export async function queryCorridorAsync(
       const db = getDb();
       const added = seedStationsNearPoint(db, seedPoint.lat, seedPoint.lon);
       if (added) {
+        ensureH3Index();
         results = queryCorridor(points, connectorStandards, corridorKm);
       }
     }
@@ -372,7 +308,8 @@ export function findNearestCompatibleStation(
   connectorStandards: ConnectorStandard[],
   maxDistanceKm: number
 ): { station: ChargingStation; distanceKm: number } | null {
-  const candidates = queryCorridor([point], connectorStandards, maxDistanceKm)
+  const stations = queryCorridor([point], connectorStandards, maxDistanceKm);
+  const candidates = stations
     .map((station) => ({
       station,
       distanceKm: haversineKm(point.lat, point.lon, station.latitude, station.longitude),
@@ -387,7 +324,8 @@ export async function findNearestCompatibleStationAsync(
   connectorStandards: ConnectorStandard[],
   maxDistanceKm: number
 ): Promise<{ station: ChargingStation; distanceKm: number } | null> {
-  const candidates = (await queryCorridorAsync([point], connectorStandards, maxDistanceKm, point))
+  const stations = await queryCorridorAsync([point], connectorStandards, maxDistanceKm, point);
+  const candidates = stations
     .map((station) => ({
       station,
       distanceKm: haversineKm(point.lat, point.lon, station.latitude, station.longitude),
@@ -396,3 +334,51 @@ export async function findNearestCompatibleStationAsync(
 
   return candidates[0] ?? null;
 }
+
+/** Ranked alternatives near a trip charge stop for user swap UI. */
+export async function listCorridorAlternatives(
+  needChargeAt: { lat: number; lon: number },
+  connectorStandards: ConnectorStandard[],
+  arrivalSocPct: number,
+  reserveSocPct: number,
+  excludeIds: Set<string>,
+  limit = 8
+): Promise<
+  Array<{
+    station: ChargingStation;
+    distanceKm: number;
+    score: number;
+    maxPowerKw: number;
+  }>
+> {
+  const corridorKm = 55;
+  const stations = await queryCorridorAsync(
+    [needChargeAt],
+    connectorStandards,
+    corridorKm,
+    needChargeAt
+  );
+
+  const ranked = rankTripStopCandidates(stations, {
+    needChargeAt,
+    connectorStandards,
+    arrivalSocPct,
+    reserveSocPct,
+    maxDetourKm: corridorKm,
+    excludeIds,
+  });
+
+  return ranked.slice(0, limit).map((c) => ({
+    station: c.station,
+    distanceKm: c.distanceKm,
+    score: c.score,
+    maxPowerKw: Math.max(
+      ...c.station.connectors
+        .filter((conn) => connectorStandards.includes(conn.standard))
+        .map((conn) => conn.maxPowerKw),
+      0
+    ),
+  }));
+}
+
+export { loadStation };
