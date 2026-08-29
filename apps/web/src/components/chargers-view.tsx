@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import dynamic from "next/dynamic";
 import type { ChargingStation, ConnectorStandard } from "@ev/domain";
 import { DirectionsButton } from "@/components/directions-button";
 import {
@@ -21,15 +20,6 @@ import { StaleDataBanner } from "@/components/stale-data-banner";
 import { LocateMeButton } from "@/components/locate-me-button";
 import { getReachabilityCache, stationsWithDistance } from "@/lib/reachability-client";
 import { getCurrentLocation } from "@/lib/geolocation";
-
-const MapView = dynamic(() => import("./charger-map").then((m) => m.ChargerMap), {
-  ssr: false,
-  loading: () => (
-    <div className="flex h-[400px] items-center justify-center rounded-2xl bg-slate-900 text-slate-400">
-      Loading map…
-    </div>
-  ),
-});
 
 interface ChargersViewProps {
   initialLat?: number;
@@ -55,7 +45,6 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
   const [directoryUnavailable, setDirectoryUnavailable] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
   const [locating, setLocating] = useState(false);
-  const [mapZoom, setMapZoom] = useState(12);
   const [sortBy, setSortBy] = useState<ChargerSortMode>("vehicle");
   const [vehicleConnectors, setVehicleConnectors] = useState<ConnectorStandard[]>([]);
   const [vehicleLabel, setVehicleLabel] = useState<string | null>(null);
@@ -158,7 +147,6 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
           const point = { lat: pos.coords.latitude, lon: pos.coords.longitude };
           setUserLocation(point);
           setCenter(point);
-          setMapZoom(14);
           search(point.lat, point.lon);
         },
         () => search(initialLat, initialLon)
@@ -176,7 +164,6 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
       const point = await getCurrentLocation();
       setUserLocation(point);
       setCenter(point);
-      setMapZoom(14);
       await search(point.lat, point.lon);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not get your location");
@@ -280,17 +267,6 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
           {error}
         </p>
       )}
-
-      <MapView
-        center={center}
-        userLocation={userLocation}
-        mapZoom={mapZoom}
-        stations={sortedStations}
-        selected={selected}
-        onSelect={setSelected}
-        onLocateMe={locateMe}
-        locating={locating}
-      />
 
       {loading ? (
         <p className="text-center text-slate-400">Searching for chargers…</p>
