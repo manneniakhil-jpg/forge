@@ -73,20 +73,12 @@ body {
 .ev-scene {
   position: fixed;
   left: 50%;
-  bottom: 4vh;
-  z-index: 1;
+  bottom: 8vh;
   width: min(920px, 120vw);
   transform: translateX(-50%);
   pointer-events: none;
-  opacity: 0.42;
-  mask-image: linear-gradient(
-    180deg,
-    transparent 0%,
-    transparent 38%,
-    black 58%,
-    black 82%,
-    transparent 100%
-  );
+  opacity: 0.55;
+  mask-image: linear-gradient(180deg, black 40%, transparent 95%);
 }
 
 .ev-art {
@@ -95,7 +87,7 @@ body {
 }
 
 .bolt {
-  filter: drop-shadow(0 0 10px rgba(57, 255, 20, 0.35));
+  filter: drop-shadow(0 0 18px rgba(57, 255, 20, 0.6));
   animation: boltPulse 2.4s ease-in-out infinite;
 }
 
@@ -115,8 +107,8 @@ body {
     transform: scale(1);
   }
   50% {
-    opacity: 0.75;
-    filter: drop-shadow(0 0 14px rgba(0, 229, 255, 0.45));
+    opacity: 1;
+    filter: drop-shadow(0 0 28px rgba(0, 229, 255, 0.8));
   }
 }
 
@@ -247,8 +239,6 @@ body {
 
 .hero {
   margin-top: 2rem;
-  position: relative;
-  z-index: 1;
 }
 
 .badge {
@@ -296,8 +286,7 @@ body {
   color: var(--muted);
   border: 1px solid rgba(0, 229, 255, 0.2);
   border-radius: 9999px;
-  background: rgba(4, 16, 24, 0.82);
-  backdrop-filter: blur(6px);
+  background: rgba(10, 40, 64, 0.5);
 }
 
 .ev-pills li:nth-child(1) {
@@ -346,8 +335,8 @@ body {
 
 @media (max-width: 520px) {
   .ev-scene {
-    opacity: 0.28;
-    bottom: 2vh;
+    opacity: 0.35;
+    bottom: 4vh;
   }
 
   .footer {
