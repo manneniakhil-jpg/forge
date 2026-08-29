@@ -1,6 +1,6 @@
 # drieEV landing page
 
-Static page for **drieEv.com** — premium EV domain available for acquisition, with brand **drieEV** and tagline **Drive EV with ease**.
+Static sales page for **drieEv.com** — premium EV domain with brand name **drieEV** and tagline **Drive EV with ease**.
 
 ## Preview locally
 
