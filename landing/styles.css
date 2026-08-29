@@ -142,63 +142,87 @@ body {
   text-align: center;
 }
 
-.charge-ring {
+.brand-logo {
   position: relative;
-  width: 5.5rem;
-  height: 5.5rem;
+  width: 6rem;
+  height: 6rem;
   margin-bottom: 1.25rem;
 }
 
-.charge-ring svg {
+.logo-ring {
   width: 100%;
   height: 100%;
-  transform: rotate(-90deg);
 }
 
 .ring-bg {
   fill: none;
-  stroke: rgba(0, 229, 255, 0.15);
+  stroke: rgba(0, 229, 255, 0.12);
   stroke-width: 4;
 }
 
 .ring-fill {
   fill: none;
-  stroke: url(#ringGradient);
   stroke-width: 4;
   stroke-linecap: round;
-  stroke-dasharray: 276;
-  stroke-dashoffset: 70;
-  animation: charge 2.5s ease-in-out infinite;
+  transform-origin: 50px 50px;
 }
 
-.charge-ring::before {
+.logo-ring .ring-fill-nav {
+  stroke: var(--electric-blue);
+  stroke-dasharray: 138 138;
+  stroke-dashoffset: 34;
+  transform: rotate(-90deg);
+  animation: ringNav 3s ease-in-out infinite;
+}
+
+.logo-ring .ring-fill-charge {
+  stroke: var(--volt-green);
+  stroke-dasharray: 138 138;
+  stroke-dashoffset: 34;
+  transform: rotate(90deg);
+  animation: ringCharge 3s ease-in-out infinite;
+}
+
+.brand-logo::before {
   content: "";
   position: absolute;
   inset: -8px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(57, 255, 20, 0.2), transparent 70%);
-  animation: chargeGlow 2.5s ease-in-out infinite;
+  background: radial-gradient(circle, rgba(57, 255, 20, 0.18), transparent 70%);
+  animation: chargeGlow 3s ease-in-out infinite;
 }
 
-.ring-icon {
+.logo-icons {
   position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.75rem;
-  filter: drop-shadow(0 0 12px rgba(255, 229, 102, 0.8));
+  left: 50%;
+  top: 50%;
+  width: 2.75rem;
+  height: auto;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 0 10px rgba(0, 229, 255, 0.35));
 }
 
-@keyframes charge {
+@keyframes ringNav {
   0%,
   100% {
-    stroke-dashoffset: 90;
-    stroke: var(--electric-blue);
+    stroke-dashoffset: 50;
+    opacity: 0.7;
   }
   50% {
-    stroke-dashoffset: 20;
-    stroke: var(--volt-green);
+    stroke-dashoffset: 10;
+    opacity: 1;
+  }
+}
+
+@keyframes ringCharge {
+  0%,
+  100% {
+    stroke-dashoffset: 50;
+    opacity: 0.7;
+  }
+  50% {
+    stroke-dashoffset: 10;
+    opacity: 1;
   }
 }
 
@@ -303,18 +327,13 @@ body {
 }
 
 .ev-pills li:nth-child(1) {
-  border-color: rgba(57, 255, 20, 0.35);
-  color: #a8ff78;
-}
-
-.ev-pills li:nth-child(2) {
   border-color: rgba(0, 229, 255, 0.35);
   color: #7eeeff;
 }
 
-.ev-pills li:nth-child(3) {
-  border-color: rgba(255, 229, 102, 0.35);
-  color: #ffe566;
+.ev-pills li:nth-child(2) {
+  border-color: rgba(57, 255, 20, 0.35);
+  color: #a8ff78;
 }
 
 .footer {

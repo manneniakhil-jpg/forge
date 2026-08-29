@@ -82,12 +82,35 @@
     </div>
 
     <main class="page">
-      <div class="charge-ring" aria-hidden="true">
-        <svg viewBox="0 0 100 100">
+      <div class="brand-logo" aria-hidden="true">
+        <svg class="logo-ring" viewBox="0 0 100 100">
           <circle cx="50" cy="50" r="44" class="ring-bg" />
-          <circle cx="50" cy="50" r="44" class="ring-fill" />
+          <circle cx="50" cy="50" r="44" class="ring-fill ring-fill-nav" />
+          <circle cx="50" cy="50" r="44" class="ring-fill ring-fill-charge" />
         </svg>
-        <span class="ring-icon">⚡</span>
+        <svg class="logo-icons" viewBox="0 0 72 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Navigate -->
+          <path
+            d="M6 24 L14 8 L22 18 L30 6"
+            stroke="#00e5ff"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+          <circle cx="14" cy="8" r="2.5" fill="#00e5ff" />
+          <circle cx="30" cy="6" r="2.5" fill="#00e5ff" />
+          <!-- Charge -->
+          <path
+            d="M46 4 L40 16 H48 L44 28 L56 14 H48 L52 4 Z"
+            fill="url(#logoBolt)"
+          />
+          <defs>
+            <linearGradient id="logoBolt" x1="40" y1="4" x2="56" y2="28" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#ffe566" />
+              <stop offset="1" stop-color="#39ff14" />
+            </linearGradient>
+          </defs>
+        </svg>
       </div>
 
       <header class="brand">
@@ -103,9 +126,8 @@
           Launching soon
         </p>
         <ul class="ev-pills" aria-label="Coming features">
-          <li>Charge</li>
           <li>Navigate</li>
-          <li>Track</li>
+          <li>Charge</li>
         </ul>
       </section>
 
