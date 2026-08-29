@@ -6,13 +6,13 @@ export interface GeocodeResult {
 
 export async function geocodePlace(query: string): Promise<GeocodeResult[]> {
   const trimmed = query.trim();
-  if (trimmed.length < 1 || trimmed.length > 200) return [];
+  if (trimmed.length < 2 || trimmed.length > 200) return [];
 
   const params = new URLSearchParams({
     q: trimmed,
     format: "json",
-    limit: "5",
-    countrycodes: "us",
+    limit: "10",
+    addressdetails: "0",
   });
 
   try {
