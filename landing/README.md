@@ -1,6 +1,8 @@
 # drieEV landing page
 
-Static “Launching soon” site for [drieEv.com](https://drieEv.com).
+Static **Launching soon** page for [drieEv.com](https://drieEv.com) — EV-themed brand preview with a domain acquisition contact in the footer.
+
+**On the page:** drieEV · *Drive EV with ease* · Launching soon · `manneniakhil@gmail.com` for domain acquisition.
 
 ## Preview locally
 
