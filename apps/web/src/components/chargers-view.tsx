@@ -11,7 +11,6 @@ import {
   type ChargerSortMode,
   isStationCompatible,
 } from "@/lib/charger-sort";
-import { FitsYourCarBadge, NoMatchBadge } from "@/components/fits-your-car-badge";
 import {
   cacheChargerResults,
   cacheFavorites,
@@ -210,6 +209,7 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
           onChange={handlePlaceChange}
           onError={setError}
           showLocateMe
+          locationBias={userLocation ?? center}
         />
       </div>
 

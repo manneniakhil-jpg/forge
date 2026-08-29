@@ -197,6 +197,7 @@ export default function TripsPage() {
           value={destination}
           onChange={handleDestinationChange}
           onError={setError}
+          locationBias={origin ?? navUserLocation}
         />
 
         <PlaceSearchField
@@ -212,6 +213,7 @@ export default function TripsPage() {
           onChange={handleOriginChange}
           onError={setError}
           showLocateMe
+          locationBias={navUserLocation ?? origin}
         />
 
         {destination && (
