@@ -146,8 +146,8 @@ body {
 .brand-logo {
   position: relative;
   flex-shrink: 0;
-  width: clamp(2.75rem, 8vw, 3.75rem);
-  height: clamp(2.75rem, 8vw, 3.75rem);
+  width: var(--brand-ev-size);
+  height: var(--brand-ev-size);
   margin-bottom: 0;
 }
 
@@ -219,7 +219,7 @@ body {
   display: flex;
   align-items: baseline;
   gap: 0;
-  font-size: clamp(3rem, 12vw, 5rem);
+  font-size: var(--brand-ev-size);
   font-weight: 700;
   letter-spacing: -0.04em;
   line-height: 1;
