@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     return apiError("INVALID_PARAMS", `Invalid ${validation.field}`, 400);
   }
 
-  const { stations, fallbackUsed } = searchChargers({
+  const { stations, fallbackUsed, regionalDemoAdded } = searchChargers({
     lat,
     lon,
     radiusKm,
@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
   return jsonOk({
     stations: sorted,
     fallbackUsed,
+    regionalDemoAdded,
     favorites,
     feedTimestamps: {},
   });

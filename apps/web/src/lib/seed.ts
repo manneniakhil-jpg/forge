@@ -116,3 +116,101 @@ export function seedDatabase(db: Database.Database) {
   }
   insertStationList(db, CORRIDOR_CHARGERS, "stn_c", true);
 }
+
+/** ~1 decimal degree ≈ 11 km — one demo cluster per region */
+function regionKey(lat: number, lon: number): string {
+  const r = (n: number) => Math.round(n * 10) / 10;
+  return `${r(lat)}_${r(lon)}`.replace(".", "p").replace("-", "n");
+}
+
+const NEARBY_DEMO_STATIONS: Array<{
+  name: string;
+  network: string;
+  bearingDeg: number;
+  distanceKm: number;
+  connectors: SeedStation["connectors"];
+}> = [
+  {
+    name: "ChargePoint — Nearby",
+    network: "chargepoint",
+    bearingDeg: 0,
+    distanceKm: 2.5,
+    connectors: [
+      { standard: "CCS", power: 150, price: 0.35 },
+      { standard: "NACS", power: 150, price: 0.35 },
+    ],
+  },
+  {
+    name: "Electrify America — Nearby",
+    network: "electrify_america",
+    bearingDeg: 72,
+    distanceKm: 4,
+    connectors: [
+      { standard: "CCS", power: 350, price: 0.48 },
+      { standard: "NACS", power: 250, price: 0.48 },
+    ],
+  },
+  {
+    name: "EVgo — Nearby",
+    network: "evgo",
+    bearingDeg: 144,
+    distanceKm: 3,
+    connectors: [
+      { standard: "CCS", power: 100, price: 0.42 },
+      { standard: "NACS", power: 200, price: 0.42 },
+    ],
+  },
+  {
+    name: "Tesla Supercharger — Nearby",
+    network: "tesla",
+    bearingDeg: 216,
+    distanceKm: 5.5,
+    connectors: [{ standard: "NACS", power: 250, price: 0.32 }],
+  },
+  {
+    name: "Shell Recharge — Nearby",
+    network: "shell",
+    bearingDeg: 288,
+    distanceKm: 3.5,
+    connectors: [
+      { standard: "CCS", power: 150, price: 0.4 },
+      { standard: "NACS", power: 150, price: 0.4 },
+    ],
+  },
+];
+
+function offsetPoint(
+  lat: number,
+  lon: number,
+  distanceKm: number,
+  bearingDeg: number
+): { lat: number; lon: number } {
+  const rad = (bearingDeg * Math.PI) / 180;
+  const dLat = (distanceKm * Math.cos(rad)) / 111;
+  const dLon = (distanceKm * Math.sin(rad)) / (111 * Math.cos((lat * Math.PI) / 180));
+  return { lat: lat + dLat, lon: lon + dLon };
+}
+
+/** Add demo chargers near the user when our CA seed set has nothing within 250 km. */
+export function seedStationsNearPoint(db: Database.Database, lat: number, lon: number): boolean {
+  const key = regionKey(lat, lon);
+  const prefix = `stn_near_${key}`;
+  const exists = db
+    .prepare("SELECT id FROM charging_stations WHERE id LIKE ? LIMIT 1")
+    .get(`${prefix}%`) as { id: string } | undefined;
+  if (exists) return false;
+
+  const stations: SeedStation[] = NEARBY_DEMO_STATIONS.map((template) => {
+    const point = offsetPoint(lat, lon, template.distanceKm, template.bearingDeg);
+    return {
+      name: template.name,
+      lat: point.lat,
+      lon: point.lon,
+      network: template.network,
+      connectors: template.connectors,
+    };
+  });
+
+  insertStationList(db, stations, prefix, false);
+  return true;
+}

@@ -33,6 +33,7 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fallbackUsed, setFallbackUsed] = useState(false);
+  const [regionalDemoAdded, setRegionalDemoAdded] = useState(false);
   const [filters, setFilters] = useState({
     radiusKm: 15,
     connectorStandard: "",
@@ -66,6 +67,7 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
     setFromCache(false);
     setCacheTimestamp(null);
     setDirectoryUnavailable(false);
+    setRegionalDemoAdded(false);
     try {
       const params = new URLSearchParams({
         lat: String(lat),
@@ -89,6 +91,7 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
 
       setStations(data.stations);
       setFallbackUsed(data.fallbackUsed);
+      setRegionalDemoAdded(Boolean(data.regionalDemoAdded));
       setCenter({ lat, lon });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Search failed";
@@ -180,9 +183,22 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
         <LocateMeButton onClick={locateMe} loading={locating} />
       </div>
 
-      {fallbackUsed && (
+      {regionalDemoAdded && (
+        <p className="rounded-xl bg-emerald-900/30 px-4 py-3 text-sm text-emerald-100">
+          Added demo chargers near your location — our full network data covers California corridors.
+        </p>
+      )}
+
+      {fallbackUsed && stations.length > 0 && (
         <p className="rounded-xl bg-amber-900/30 px-4 py-3 text-sm text-amber-200">
-          No chargers found within your radius. Showing nearest stations outside the search area.
+          No chargers within {filters.radiusKm} km. Showing the {stations.length} nearest station
+          {stations.length === 1 ? "" : "s"} (up to 250 km away).
+        </p>
+      )}
+
+      {fallbackUsed && stations.length === 0 && (
+        <p className="rounded-xl bg-amber-900/30 px-4 py-3 text-sm text-amber-200">
+          No chargers found near this location. Try increasing the search radius.
         </p>
       )}
 

@@ -1,4 +1,5 @@
 import { getDb } from "./db";
+import { seedStationsNearPoint } from "./seed";
 import {
   haversineKm,
   resolveAvailability,
@@ -75,10 +76,15 @@ function matchesFilters(station: ChargingStation, params: SearchParams): boolean
   return matchingConnectors.length > 0;
 }
 
-export function searchChargers(params: SearchParams): {
+export function searchChargers(
+  params: SearchParams,
+  options: { allowRegionalSeed?: boolean } = {}
+): {
   stations: Array<ChargingStation & { distanceKm: number; outsideRadius?: boolean }>;
   fallbackUsed: boolean;
+  regionalDemoAdded: boolean;
 } {
+  const { allowRegionalSeed = true } = options;
   const db = getDb();
   const allIds = db.prepare("SELECT id FROM charging_stations").all() as Array<{ id: string }>;
 
@@ -99,15 +105,26 @@ export function searchChargers(params: SearchParams): {
   const inRadius = withDistance.filter((s) => s.distanceKm <= params.radiusKm).slice(0, 200);
 
   if (inRadius.length > 0) {
-    return { stations: inRadius, fallbackUsed: false };
+    return { stations: inRadius, fallbackUsed: false, regionalDemoAdded: false };
   }
 
-  const fallback = withDistance
-    .filter((s) => s.distanceKm <= 250)
-    .slice(0, 5)
-    .map((s) => ({ ...s, outsideRadius: true }));
+  const within250 = withDistance.filter((s) => s.distanceKm <= 250);
 
-  return { stations: fallback, fallbackUsed: true };
+  if (within250.length === 0 && allowRegionalSeed) {
+    const added = seedStationsNearPoint(db, params.lat, params.lon);
+    if (added) {
+      const retry = searchChargers(params, { allowRegionalSeed: false });
+      return { ...retry, regionalDemoAdded: true };
+    }
+  }
+
+  const fallback = within250.slice(0, 5).map((s) => ({ ...s, outsideRadius: true }));
+
+  return {
+    stations: fallback,
+    fallbackUsed: fallback.length > 0,
+    regionalDemoAdded: false,
+  };
 }
 
 export function getFavorites(ownerId: string): string[] {
