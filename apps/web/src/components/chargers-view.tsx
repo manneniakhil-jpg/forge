@@ -20,17 +20,6 @@ import { StaleDataBanner } from "@/components/stale-data-banner";
 import { PlaceSearchField, type GeocodeHit } from "@/components/place-search-field";
 import { getReachabilityCache, stationsWithDistance } from "@/lib/reachability-client";
 
-const POPULAR_PLACES = [
-  "San Francisco, California",
-  "Los Angeles, California",
-  "San Diego, California",
-  "San Jose, California",
-  "Seattle, Washington",
-  "Portland, Oregon",
-  "Las Vegas, Nevada",
-  "Denver, Colorado",
-];
-
 interface ChargersViewProps {
   initialLat?: number;
   initialLon?: number;
@@ -218,8 +207,6 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
           value={searchPlace}
           onChange={handlePlaceChange}
           onError={setError}
-          quickPicks={POPULAR_PLACES}
-          quickPicksLabel="Popular places"
           showLocateMe
         />
       </div>
