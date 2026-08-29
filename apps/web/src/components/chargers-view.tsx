@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 import type { ChargingStation, ConnectorStandard, VehicleKind } from "@ev/domain";
 import { DirectionsButton } from "@/components/directions-button";
@@ -39,9 +38,19 @@ const ChargerMap = dynamic(
 interface ChargersViewProps {
   initialLat?: number;
   initialLon?: number;
+  vehicleKind?: VehicleKind;
+  vehicleLabel?: string | null;
+  /** When false, the Leaflet map is never mounted (e-bikes). */
+  showMap?: boolean;
 }
 
-export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: ChargersViewProps) {
+export function ChargersView({
+  initialLat = 37.7749,
+  initialLon = -122.4194,
+  vehicleKind: vehicleKindProp = "car",
+  vehicleLabel: vehicleLabelProp = null,
+  showMap = true,
+}: ChargersViewProps) {
   const [stations, setStations] = useState<Array<ChargingStation & { distanceKm: number; outsideRadius?: boolean }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,12 +71,11 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
   const [searchPlace, setSearchPlace] = useState<GeocodeHit | null>(null);
   const [sortBy, setSortBy] = useState<ChargerSortMode>("vehicle");
   const [vehicleConnectors, setVehicleConnectors] = useState<ConnectorStandard[]>([]);
-  const [vehicleKind, setVehicleKind] = useState<VehicleKind>("car");
-  const [vehicleProfileReady, setVehicleProfileReady] = useState(false);
-  const [vehicleLabel, setVehicleLabel] = useState<string | null>(null);
+  const [vehicleKind, setVehicleKind] = useState<VehicleKind>(vehicleKindProp);
+  const [vehicleProfileReady, setVehicleProfileReady] = useState(true);
+  const [vehicleLabel, setVehicleLabel] = useState<string | null>(vehicleLabelProp);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [locating, setLocating] = useState(false);
-  const pathname = usePathname();
 
   const sortedStations = useMemo(
     () =>
@@ -188,13 +196,15 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
     }
   };
 
+  useEffect(() => {
+    setVehicleKind(vehicleKindProp);
+    setVehicleLabel(vehicleLabelProp);
+    setVehicleProfileReady(true);
+  }, [vehicleKindProp, vehicleLabelProp]);
+
   const loadVehicleProfile = useCallback(async () => {
     const token = localStorage.getItem("ev_session_token");
-    if (!token) {
-      setVehicleProfileReady(true);
-      return;
-    }
-    setVehicleProfileReady(false);
+    if (!token) return;
     try {
       const data = await fetch("/api/me", {
         headers: { Authorization: `Bearer ${token}` },
@@ -213,21 +223,19 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
       }
     } catch {
       setVehicleKind("car");
-    } finally {
-      setVehicleProfileReady(true);
     }
   }, []);
 
   useEffect(() => {
     void loadVehicleProfile();
-  }, [loadVehicleProfile, pathname]);
+  }, [loadVehicleProfile]);
 
   useEffect(() => {
-    const onFocus = () => {
+    const onVehicleChange = () => {
       void loadVehicleProfile();
     };
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
+    window.addEventListener("ev-active-vehicle-changed", onVehicleChange);
+    return () => window.removeEventListener("ev-active-vehicle-changed", onVehicleChange);
   }, [loadVehicleProfile]);
 
   useEffect(() => {
@@ -248,12 +256,16 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
   }, []);
 
   const isBike = vehicleKind === "bike";
+  const mapEnabled = showMap && !isBike;
 
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold">{isBike ? "Charging spots" : "Find Chargers"}</h1>
         <p className="text-slate-400">
+          {vehicleLabel && (
+            <span className="block text-xs text-slate-500">Active: {vehicleLabel}{isBike ? " · e-bike" : ""}</span>
+          )}
           {isBike
             ? `Level 2 and outlet-friendly locations near ${locationSubtitle} — map hidden for e-bikes`
             : sortBy === "vehicle" && vehicleConnectors.length > 0
@@ -360,13 +372,13 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
         </p>
       )}
 
-      {!vehicleProfileReady && (
+      {!vehicleProfileReady && mapEnabled && (
         <div className="flex h-24 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-sm text-slate-400">
           Loading your vehicle profile…
         </div>
       )}
 
-      {vehicleProfileReady && !loading && !isBike && (
+      {vehicleProfileReady && !loading && mapEnabled && (
         <ChargerMap
           center={center}
           userLocation={userLocation}

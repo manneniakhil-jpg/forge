@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Car, Check, Plus } from "lucide-react";
 import { Button, Card, Input, Label } from "@/components/ui";
 import { apiFetch, getAuthToken } from "@/lib/utils";
+import { ACTIVE_VEHICLE_CHANGED_EVENT } from "@/lib/vehicle-events";
 import type { ConnectorStandard, VehicleKind } from "@ev/domain";
 
 type VehicleRow = {
@@ -121,6 +122,7 @@ export default function SettingsPage() {
       });
       setActiveVehicleId(vehicleId);
       setMessage("Active vehicle updated.");
+      window.dispatchEvent(new Event(ACTIVE_VEHICLE_CHANGED_EVENT));
     } catch (e) {
       const err = e as { message?: string };
       setError(err.message || "Could not switch vehicle.");

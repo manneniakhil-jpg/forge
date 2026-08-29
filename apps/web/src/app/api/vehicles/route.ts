@@ -114,9 +114,7 @@ export async function POST(request: NextRequest) {
      VALUES (?, ?, ?, 0, 'idle', ?)`
   ).run(vehicleId, initialSoc, rangeKm, now);
 
-  if (count.c === 0) {
-    db.prepare("UPDATE accounts SET active_vehicle_id = ? WHERE id = ?").run(vehicleId, auth.ownerId);
-  }
+  db.prepare("UPDATE accounts SET active_vehicle_id = ? WHERE id = ?").run(vehicleId, auth.ownerId);
 
   return jsonOk(
     {

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Battery, Bike, Car, Mail, Lock } from "lucide-react";
 import { Button, Input, Label, Card } from "@/components/ui";
 import { apiFetch, setAuthToken, getAuthToken } from "@/lib/utils";
+import { notifyActiveVehicleChanged } from "@/lib/vehicle-events";
 import type { VehicleKind } from "@ev/domain";
 
 function AuthForm() {
@@ -101,6 +102,7 @@ function AuthForm() {
         method: "POST",
         body: JSON.stringify({ ...vehicleForm, vehicleKind }),
       });
+      notifyActiveVehicleChanged();
       router.replace("/");
     } catch (e) {
       setError((e as { message?: string }).message || "Could not add vehicle");
