@@ -149,8 +149,17 @@ async function fetchOsrmRoute(
   }
 }
 
-/** Traffic-aware driving route when Google is configured; otherwise OSRM. */
-export async function fetchRoadRoute(
+const ROUTE_CACHE_MAX = 48;
+const routeCache = new Map<string, RoadRoute | { error: string }>();
+
+function routeCacheKey(
+  from: { lat: number; lon: number },
+  to: { lat: number; lon: number }
+): string {
+  return `${from.lat.toFixed(4)},${from.lon.toFixed(4)}->${to.lat.toFixed(4)},${to.lon.toFixed(4)}`;
+}
+
+async function fetchRoadRouteUncached(
   from: { lat: number; lon: number },
   to: { lat: number; lon: number }
 ): Promise<RoadRoute | { error: string }> {
@@ -167,6 +176,24 @@ export async function fetchRoadRoute(
   }
 
   return fetchOsrmRoute(from, to);
+}
+
+/** Traffic-aware driving route when Google is configured; otherwise OSRM. */
+export async function fetchRoadRoute(
+  from: { lat: number; lon: number },
+  to: { lat: number; lon: number }
+): Promise<RoadRoute | { error: string }> {
+  const key = routeCacheKey(from, to);
+  const cached = routeCache.get(key);
+  if (cached) return cached;
+
+  const result = await fetchRoadRouteUncached(from, to);
+  routeCache.set(key, result);
+  if (routeCache.size > ROUTE_CACHE_MAX) {
+    const oldest = routeCache.keys().next().value;
+    if (oldest) routeCache.delete(oldest);
+  }
+  return result;
 }
 
 async function fetchOsrmRouteWithSteps(

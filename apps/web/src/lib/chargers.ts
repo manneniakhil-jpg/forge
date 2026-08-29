@@ -219,11 +219,18 @@ export function queryCorridor(
   return filterStationsAlongCorridor(stations, points, corridorKm, connectorStandards);
 }
 
+export type CorridorQueryOptions = {
+  /** Skip Google Places (H3 + regional seed only). */
+  skipGoogle?: boolean;
+  maxGoogleSamples?: number;
+};
+
 export async function queryCorridorAsync(
   points: Array<{ lat: number; lon: number }>,
   connectorStandards: ConnectorStandard[],
   corridorKm = 30,
-  seedNear?: { lat: number; lon: number }
+  seedNear?: { lat: number; lon: number },
+  options: CorridorQueryOptions = {}
 ): Promise<ChargingStation[]> {
   const corridorPoints =
     seedNear && !points.some((p) => p.lat === seedNear.lat && p.lon === seedNear.lon)
@@ -244,31 +251,60 @@ export async function queryCorridorAsync(
     }
   }
 
+  if (options.skipGoogle || results.length > 0) {
+    if (results.length === 0) {
+      const seedPoint = seedNear ?? points[points.length - 1] ?? points[0];
+      if (seedPoint) {
+        const db = getDb();
+        const added = seedStationsNearPoint(db, seedPoint.lat, seedPoint.lon);
+        if (added) {
+          ensureH3Index();
+          results = queryCorridor(corridorPoints, connectorStandards, corridorKm);
+        } else {
+          ensureH3Index();
+          for (const station of searchStationsInRadius(seedPoint.lat, seedPoint.lon, corridorKm)) {
+            if (seen.has(station.id)) continue;
+            if (
+              !filterStationsAlongCorridor([station], corridorPoints, corridorKm, connectorStandards)
+                .length
+            ) {
+              continue;
+            }
+            seen.add(station.id);
+            results.push(station);
+          }
+        }
+      }
+    }
+    return results;
+  }
+
   if (isGooglePlacesConfigured() && corridorPoints.length > 0) {
-    const samples = pickCorridorSamplePoints(corridorPoints, 8);
+    const samples = pickCorridorSamplePoints(corridorPoints, options.maxGoogleSamples ?? 3);
     const searchRadiusKm = Math.min(corridorKm, 50);
 
-    for (const sample of samples) {
-      try {
-        const googleStations = await fetchNearbyEvStations({
+    const batches = await Promise.all(
+      samples.map((sample) =>
+        fetchNearbyEvStations({
           lat: sample.lat,
           lon: sample.lon,
           radiusKm: searchRadiusKm,
-        });
-        for (const station of googleStations) {
-          upsertStation(station);
-          if (seen.has(station.id)) continue;
-          if (
-            !filterStationsAlongCorridor([station], corridorPoints, corridorKm, connectorStandards)
-              .length
-          ) {
-            continue;
-          }
-          seen.add(station.id);
-          results.push(station);
+        }).catch(() => [] as Array<ChargingStation & { distanceKm: number }>)
+      )
+    );
+
+    for (const googleStations of batches) {
+      for (const station of googleStations) {
+        upsertStation(station);
+        if (seen.has(station.id)) continue;
+        if (
+          !filterStationsAlongCorridor([station], corridorPoints, corridorKm, connectorStandards)
+            .length
+        ) {
+          continue;
         }
-      } catch (error) {
-        console.error("[chargers] Google corridor search failed:", error);
+        seen.add(station.id);
+        results.push(station);
       }
     }
   }

@@ -7,7 +7,6 @@ import {
   type TripPlan,
 } from "@ev/domain";
 import {
-  findNearestCompatibleStationAsync,
   getStationById,
   listCorridorAlternatives,
   queryCorridorAsync,
@@ -57,6 +56,10 @@ interface PlannerState {
   currentSoc: number;
   totalDistanceKm: number;
   totalDrivingMin: number;
+}
+
+interface PlannerOptions {
+  skipGoogleCorridor?: boolean;
 }
 
 function maxComfortLegKm(input: TripInput): number {
@@ -114,7 +117,8 @@ function buildPlan(
 async function continuePlanning(
   input: TripInput,
   state: PlannerState,
-  maxStops: number
+  maxStops: number,
+  options: PlannerOptions = {}
 ): Promise<TripPlan | { error: string; details?: Record<string, unknown> }> {
   for (let attempt = state.chargeStops.length; attempt <= maxStops; attempt++) {
     const route = await fetchRoadRoute(state.currentPos, input.destination);
@@ -182,13 +186,25 @@ async function continuePlanning(
     let picked: { station: import("@ev/domain").ChargingStation; distanceKm: number } | null =
       null;
 
-    for (const radius of [50, 90, 150]) {
+    const searchPasses = options.skipGoogleCorridor
+      ? [
+          { radius: 55, skipGoogle: true },
+          { radius: 150, skipGoogle: true },
+        ]
+      : [
+          { radius: 55, skipGoogle: true },
+          { radius: 150, skipGoogle: true },
+          { radius: 150, skipGoogle: false },
+        ];
+
+    for (const { radius, skipGoogle } of searchPasses) {
       const maxDetourKm = Math.min(radius, 55);
       const alongRoute = await queryCorridorAsync(
         routeSamples,
         input.connectorStandards,
         radius,
-        needChargeAt
+        needChargeAt,
+        { skipGoogle }
       );
 
       const best = pickBestTripStop(alongRoute, {
@@ -203,18 +219,6 @@ async function continuePlanning(
       if (best) {
         picked = { station: best.station, distanceKm: best.distanceKm };
         break;
-      }
-
-      const fallback = await findNearestCompatibleStationAsync(
-        needChargeAt,
-        input.connectorStandards,
-        radius
-      );
-      if (fallback && !state.visitedStationIds.has(fallback.station.id)) {
-        if (fallback.distanceKm <= maxDetourKm) {
-          picked = fallback;
-          break;
-        }
       }
     }
 
@@ -334,7 +338,8 @@ export async function planTrip(
 
 export async function planTripExcluding(
   input: TripInput,
-  excludeStationIds: Iterable<string>
+  excludeStationIds: Iterable<string>,
+  options: PlannerOptions = {}
 ): Promise<TripPlan | { error: string; details?: Record<string, unknown> }> {
   const state: PlannerState = {
     chargeStops: [],
@@ -345,7 +350,7 @@ export async function planTripExcluding(
     totalDistanceKm: 0,
     totalDrivingMin: 0,
   };
-  return continuePlanning(input, state, 10);
+  return continuePlanning(input, state, 10, options);
 }
 
 function planStopSignature(plan: TripPlan): string {
@@ -362,7 +367,9 @@ export async function planTripAlternatives(
   const excludeAll = new Set<string>();
 
   for (let i = 0; i < cap; i++) {
-    const result = await planTripExcluding(input, excludeAll);
+    const result = await planTripExcluding(input, excludeAll, {
+      skipGoogleCorridor: i > 0,
+    });
     if ("error" in result) break;
 
     const signature = planStopSignature(result);
