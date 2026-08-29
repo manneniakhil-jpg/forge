@@ -26,8 +26,6 @@ interface PlaceSearchFieldProps {
   value: GeocodeHit | null;
   onChange: (hit: GeocodeHit | null) => void;
   onError?: (message: string | null) => void;
-  quickPicks?: string[];
-  quickPicksLabel?: string;
   showLocateMe?: boolean;
 }
 
@@ -39,8 +37,6 @@ export function PlaceSearchField({
   value,
   onChange,
   onError,
-  quickPicks,
-  quickPicksLabel,
   showLocateMe = false,
 }: PlaceSearchFieldProps) {
   const [query, setQuery] = useState("");
@@ -204,29 +200,6 @@ export function PlaceSearchField({
 
       {value && !showResults && (
         <p className="mt-2 line-clamp-2 text-sm text-emerald-300/90">Selected: {value.label}</p>
-      )}
-
-      {quickPicks && quickPicks.length > 0 && (
-        <div className="mt-3">
-          {quickPicksLabel && (
-            <p className="mb-2 text-xs font-medium text-slate-500">{quickPicksLabel}</p>
-          )}
-          <div className="flex flex-wrap gap-2">
-            {quickPicks.map((place) => (
-              <button
-                key={place}
-                type="button"
-                onClick={() => {
-                  void runSearch(place, true);
-                }}
-                disabled={searching}
-                className="min-h-[32px] rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-emerald-600 hover:text-emerald-300 disabled:opacity-50"
-              >
-                {place.split(",")[0]}
-              </button>
-            ))}
-          </div>
-        </div>
       )}
     </div>
   );
