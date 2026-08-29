@@ -308,6 +308,11 @@ body {
   color: #a8ff78;
 }
 
+.ev-pills li:nth-child(3) {
+  border-color: rgba(255, 229, 102, 0.4);
+  color: #ffe566;
+}
+
 .footer {
   position: absolute;
   bottom: 1.25rem;
