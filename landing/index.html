@@ -3,9 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="drieEV — Navigate easy. Charge easy. The EV companion for routes and charging. Launching soon." />
+    <meta name="description" content="drieEV — Drive EV with ease. Launching soon." />
     <meta name="theme-color" content="#041018" />
-    <title>drieEV · Navigate easy. Charge easy.</title>
+    <title>drieEV · Drive EV with ease</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -88,26 +88,22 @@
           <circle cx="50" cy="50" r="44" class="ring-fill ring-fill-nav" />
           <circle cx="50" cy="50" r="44" class="ring-fill ring-fill-charge" />
         </svg>
-        <svg class="logo-icons" viewBox="0 0 80 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <g class="logo-nav">
-            <path
-              d="M4 28 L12 10 L20 20 L28 6"
-              stroke="#00e5ff"
-              stroke-width="2.2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-            <circle cx="12" cy="10" r="2.5" fill="#00e5ff" />
-            <circle cx="28" cy="6" r="2.5" fill="#00e5ff" />
-          </g>
-          <g class="logo-charge">
-            <path
-              d="M50 6 L44 18 H52 L48 30 L60 16 H52 L56 6 Z"
-              fill="url(#logoBolt)"
-            />
-          </g>
-          <text x="16" y="38" text-anchor="middle" fill="#7eeeff" font-size="7" font-weight="700" font-family="Outfit, sans-serif">GO</text>
-          <text x="56" y="38" text-anchor="middle" fill="#a8ff78" font-size="7" font-weight="700" font-family="Outfit, sans-serif">⚡</text>
+        <svg class="logo-icons" viewBox="0 0 72 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Navigate -->
+          <path
+            d="M6 24 L14 8 L22 18 L30 6"
+            stroke="#00e5ff"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+          <circle cx="14" cy="8" r="2.5" fill="#00e5ff" />
+          <circle cx="30" cy="6" r="2.5" fill="#00e5ff" />
+          <!-- Charge -->
+          <path
+            d="M46 4 L40 16 H48 L44 28 L56 14 H48 L52 4 Z"
+            fill="url(#logoBolt)"
+          />
           <defs>
             <linearGradient id="logoBolt" x1="40" y1="4" x2="56" y2="28" gradientUnits="userSpaceOnUse">
               <stop stop-color="#ffe566" />
@@ -121,7 +117,6 @@
         <h1 class="name">
           <span class="name-prefix">drie</span><span class="name-ev">EV</span>
         </h1>
-        <p class="hook">Navigate easy<span class="hook-dot">·</span>Charge easy</p>
         <p class="tagline">Drive EV with ease</p>
       </header>
 
@@ -130,19 +125,10 @@
           <span class="badge-dot"></span>
           Launching soon
         </p>
-
-        <div class="feature-duo" aria-label="What drieEV does">
-          <article class="feature-card feature-nav">
-            <span class="feature-icon" aria-hidden="true">🧭</span>
-            <h2>Navigate</h2>
-            <p>Plan your trip with charge stops on the way.</p>
-          </article>
-          <article class="feature-card feature-charge">
-            <span class="feature-icon" aria-hidden="true">⚡</span>
-            <h2>Charge</h2>
-            <p>Find the right plug and power up fast.</p>
-          </article>
-        </div>
+        <ul class="ev-pills" aria-label="Coming features">
+          <li>Navigate</li>
+          <li>Charge</li>
+        </ul>
       </section>
 
       <footer class="footer">
