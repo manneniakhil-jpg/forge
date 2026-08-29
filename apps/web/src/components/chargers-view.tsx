@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { ExternalLink } from "lucide-react";
 import type { ChargingStation } from "@ev/domain";
+import { DirectionsButton } from "@/components/directions-button";
 import {
   cacheChargerResults,
   cacheFavorites,
@@ -14,7 +14,6 @@ import { StaleDataBanner } from "@/components/stale-data-banner";
 import { LocateMeButton } from "@/components/locate-me-button";
 import { getReachabilityCache, stationsWithDistance } from "@/lib/reachability-client";
 import { getCurrentLocation } from "@/lib/geolocation";
-import { googleMapsDirectionsUrl } from "@/lib/navigation-links";
 
 const MapView = dynamic(() => import("./charger-map").then((m) => m.ChargerMap), {
   ssr: false,
@@ -245,54 +244,52 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
       ) : (
         <div className="space-y-3">
           {stations.map((station) => (
-            <button
+            <div
               key={station.id}
-              onClick={() => setSelected(station)}
-              className="w-full rounded-2xl border border-slate-700 bg-slate-900 p-4 text-left transition hover:border-emerald-600/50 min-h-[44px]"
+              className="flex items-start gap-3 rounded-2xl border border-slate-700 bg-slate-900 p-4 transition hover:border-emerald-600/50"
             >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="font-semibold">{station.operatorName}</p>
-                  <p className="text-sm text-slate-400">
-                    {station.distanceKm.toFixed(1)} km · {station.networkId.replace(/_/g, " ")}
-                  </p>
-                </div>
-                {station.outsideRadius && (
-                  <span className="rounded-full bg-amber-900/50 px-2 py-0.5 text-xs text-amber-300">
-                    Outside radius
-                  </span>
-                )}
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {station.connectors.map((c) => (
-                  <span
-                    key={c.id}
-                    className={`rounded-full px-2 py-0.5 text-xs ${
-                      c.availability === "Available"
-                        ? "bg-emerald-900/50 text-emerald-300"
-                        : c.availability === "Occupied"
-                          ? "bg-amber-900/50 text-amber-300"
-                          : "bg-slate-700 text-slate-400"
-                    }`}
-                  >
-                    {c.standard} {c.maxPowerKw}kW
-                  </span>
-                ))}
-              </div>
-              <a
-                href={googleMapsDirectionsUrl(
-                  { lat: station.latitude, lon: station.longitude },
-                  userLocation
-                )}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="mt-3 inline-flex min-h-[44px] items-center gap-1.5 text-sm font-medium text-emerald-400 hover:text-emerald-300"
+              <button
+                type="button"
+                onClick={() => setSelected(station)}
+                className="min-w-0 flex-1 text-left min-h-[44px]"
               >
-                <ExternalLink className="h-4 w-4" />
-                Get directions on Google Maps
-              </a>
-            </button>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-semibold">{station.operatorName}</p>
+                    <p className="text-sm text-slate-400">
+                      {station.distanceKm.toFixed(1)} km · {station.networkId.replace(/_/g, " ")}
+                    </p>
+                  </div>
+                  {station.outsideRadius && (
+                    <span className="rounded-full bg-amber-900/50 px-2 py-0.5 text-xs text-amber-300">
+                      Outside radius
+                    </span>
+                  )}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {station.connectors.map((c) => (
+                    <span
+                      key={c.id}
+                      className={`rounded-full px-2 py-0.5 text-xs ${
+                        c.availability === "Available"
+                          ? "bg-emerald-900/50 text-emerald-300"
+                          : c.availability === "Occupied"
+                            ? "bg-amber-900/50 text-amber-300"
+                            : "bg-slate-700 text-slate-400"
+                      }`}
+                    >
+                      {c.standard} {c.maxPowerKw}kW
+                    </span>
+                  ))}
+                </div>
+              </button>
+              <DirectionsButton
+                destination={{ lat: station.latitude, lon: station.longitude }}
+                userLocation={userLocation}
+                variant="compact"
+                className="shrink-0 self-center"
+              />
+            </div>
           ))}
         </div>
       )}
@@ -342,22 +339,27 @@ function StationDetail({
   onFavorite: () => void;
   onStartCharge: (connectorId: string) => void;
 }) {
-  const directionsUrl = googleMapsDirectionsUrl(
-    { lat: station.latitude, lon: station.longitude },
-    userLocation
-  );
-
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/60 sm:items-center sm:justify-center">
       <div className="max-h-[85vh] w-full overflow-y-auto rounded-t-3xl border border-slate-700 bg-slate-900 p-6 sm:max-w-lg sm:rounded-3xl">
-        <div className="mb-4 flex items-start justify-between">
-          <div>
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
             <h2 className="text-xl font-bold">{station.operatorName}</h2>
             <p className="text-slate-400">{station.distanceKm.toFixed(1)} km away</p>
           </div>
-          <button onClick={onClose} className="rounded-xl px-3 py-2 text-slate-400 hover:bg-slate-800 min-h-[44px] min-w-[44px]">
-            ✕
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <DirectionsButton
+              destination={{ lat: station.latitude, lon: station.longitude }}
+              userLocation={userLocation}
+              variant="compact"
+            />
+            <button
+              onClick={onClose}
+              className="rounded-xl px-3 py-2 text-slate-400 hover:bg-slate-800 min-h-[44px] min-w-[44px]"
+            >
+              ✕
+            </button>
+          </div>
         </div>
         <p className="mb-4 text-sm text-slate-300">{station.accessRules}</p>
         <div className="space-y-3">
@@ -381,18 +383,9 @@ function StationDetail({
             </div>
           ))}
         </div>
-        <a
-          href={directionsUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mb-4 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700"
-        >
-          <ExternalLink className="h-4 w-4" />
-          Get directions on Google Maps
-        </a>
         <button
           onClick={onFavorite}
-          className="w-full rounded-xl border border-slate-600 py-2.5 text-sm hover:bg-slate-800 min-h-[44px]"
+          className="mt-4 w-full rounded-xl border border-slate-600 py-2.5 text-sm hover:bg-slate-800 min-h-[44px]"
         >
           Add to favorites
         </button>

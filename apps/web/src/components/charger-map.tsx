@@ -5,7 +5,7 @@ import L from "leaflet";
 import { useEffect } from "react";
 import { LocateFixed } from "lucide-react";
 import type { ChargingStation } from "@ev/domain";
-import { googleMapsDirectionsUrl } from "@/lib/navigation-links";
+import { DirectionsButton } from "@/components/directions-button";
 import "leaflet/dist/leaflet.css";
 
 const icon = L.divIcon({
@@ -105,21 +105,18 @@ export function ChargerMap({
             eventHandlers={{ click: () => onSelect(s) }}
           >
             <Popup>
-              <strong>{s.operatorName}</strong>
-              <br />
-              {s.distanceKm.toFixed(1)} km
-              <br />
-              <a
-                href={googleMapsDirectionsUrl(
-                  { lat: s.latitude, lon: s.longitude },
-                  userLocation
-                )}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-emerald-700 underline"
-              >
-                Get directions
-              </a>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <strong>{s.operatorName}</strong>
+                  <br />
+                  {s.distanceKm.toFixed(1)} km
+                </div>
+                <DirectionsButton
+                  destination={{ lat: s.latitude, lon: s.longitude }}
+                  userLocation={userLocation}
+                  variant="icon"
+                />
+              </div>
             </Popup>
           </Marker>
         ))}
