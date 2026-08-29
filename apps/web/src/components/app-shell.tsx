@@ -8,7 +8,7 @@ import { cn, clearAuthToken } from "@/lib/utils";
 const nav = [
   { href: "/", label: "Home", icon: Battery },
   { href: "/chargers", label: "Chargers", icon: MapPin },
-  { href: "/trips", label: "Trips", icon: Route },
+  { href: "/trips", label: "Navigate", icon: Route },
   { href: "/history", label: "History", icon: History },
 ];
 

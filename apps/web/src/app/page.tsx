@@ -366,8 +366,8 @@ export default function HomePage() {
               <Route className="h-6 w-6" />
             </div>
             <div>
-              <p className="font-semibold">Plan a trip</p>
-              <p className="text-sm text-slate-400">Route with charge stops included</p>
+              <p className="font-semibold">Navigate</p>
+              <p className="text-sm text-slate-400">Route with charge stops and directions</p>
             </div>
           </Card>
         </Link>
