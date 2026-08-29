@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="drieEV — Drive EV with ease. Launching soon." />
+    <meta name="theme-color" content="#020617" />
+    <title>drieEV · Drive EV with ease</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="bg-glow" aria-hidden="true"></div>
+    <div class="grid-lines" aria-hidden="true"></div>
+
+    <main class="page">
+      <header class="brand">
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="8" y="14" width="28" height="20" rx="4" stroke="currentColor" stroke-width="2" />
+            <rect x="12" y="18" width="14" height="12" rx="2" fill="currentColor" opacity="0.35" />
+            <path d="M36 22h4v4h-4v-4z" fill="currentColor" />
+            <path
+              d="M16 26h6M16 29h4"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              opacity="0.6"
+            />
+          </svg>
+        </div>
+        <h1 class="name">drieEV</h1>
+        <p class="tagline">Drive EV with ease</p>
+      </header>
+
+      <section class="hero">
+        <p class="badge">Launching soon</p>
+        <p class="lead">
+          Charge smarter, plan farther, and spend less time thinking about where to plug in.
+        </p>
+      </section>
+
+      <footer class="footer">
+        <p>&copy; <span id="year"></span> drieEV · <a href="https://drieEv.com">drieEv.com</a></p>
+      </footer>
+    </main>
+
+    <script>
+      document.getElementById("year").textContent = new Date().getFullYear();
+    </script>
+  </body>
+</html>
