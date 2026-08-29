@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Route } from "lucide-react";
 import { Button, Card, Input, Label } from "@/components/ui";
+import { TripNavigationPanel } from "@/components/trip-navigation-panel";
 import { PlaceSearchField, type GeocodeHit } from "@/components/place-search-field";
 import { apiFetch, getAuthToken } from "@/lib/utils";
 import type { TripPlan } from "@ev/domain";
@@ -48,6 +49,9 @@ export default function TripsPage() {
   const [origin, setOrigin] = useState<GeocodeHit | null>(null);
   const [destination, setDestination] = useState<GeocodeHit | null>(null);
   const [plan, setPlan] = useState<TripPlan | null>(null);
+  const [navUserLocation, setNavUserLocation] = useState<{ lat: number; lon: number } | null>(
+    null
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,6 +100,7 @@ export default function TripsPage() {
 
     setLoading(true);
     setPlan(null);
+    setNavUserLocation(null);
     try {
       const data = await apiFetch<{ plan: TripPlan }>("/api/trips", {
         method: "POST",
@@ -208,7 +213,13 @@ export default function TripsPage() {
             <h2 className="text-lg font-bold">Your trip plan</h2>
           </div>
 
-          <TripRouteMap plan={plan} />
+          <TripRouteMap plan={plan} userLocation={navUserLocation} />
+
+          <TripNavigationPanel
+            plan={plan}
+            userLocation={navUserLocation}
+            onUserLocationChange={setNavUserLocation}
+          />
 
           <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
             <div>

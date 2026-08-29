@@ -26,7 +26,20 @@ const stopIcon = L.divIcon({
   iconAnchor: [5, 5],
 });
 
-export function TripRouteMap({ plan }: { plan: TripPlan }) {
+const userIcon = L.divIcon({
+  className: "",
+  html: `<div style="background:#2563eb;width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 0 8px rgba(37,99,235,0.8)"></div>`,
+  iconSize: [16, 16],
+  iconAnchor: [8, 8],
+});
+
+export function TripRouteMap({
+  plan,
+  userLocation,
+}: {
+  plan: TripPlan;
+  userLocation?: { lat: number; lon: number } | null;
+}) {
   const coords = plan.routeCoordinates?.map(([lat, lon]) => [lat, lon] as [number, number]) ?? [
     [plan.origin.lat, plan.origin.lon],
     [plan.destination.lat, plan.destination.lon],
@@ -53,6 +66,11 @@ export function TripRouteMap({ plan }: { plan: TripPlan }) {
             <Popup>Charge stop {i + 1}: {stop.stationName}</Popup>
           </Marker>
         ))}
+        {userLocation && (
+          <Marker position={[userLocation.lat, userLocation.lon]} icon={userIcon}>
+            <Popup>You are here</Popup>
+          </Marker>
+        )}
       </MapContainer>
     </div>
   );

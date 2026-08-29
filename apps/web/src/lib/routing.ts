@@ -8,6 +8,90 @@ export interface RoadRoute {
   coordinates: Array<{ lat: number; lon: number }>;
 }
 
+export interface OsrmManeuver {
+  type: string;
+  modifier?: string;
+  location: { lat: number; lon: number };
+}
+
+export interface OsrmStep {
+  name: string;
+  distance: number;
+  duration: number;
+  maneuver: OsrmManeuver;
+}
+
+export interface OsrmLeg {
+  steps: OsrmStep[];
+  distance: number;
+  duration: number;
+}
+
+export interface RoadRouteWithSteps extends RoadRoute {
+  legs: OsrmLeg[];
+}
+
+type OsrmRouteJson = {
+  code?: string;
+  routes?: Array<{
+    distance: number;
+    duration: number;
+    geometry?: { coordinates: Array<[number, number]> };
+    legs?: Array<{
+      distance: number;
+      duration: number;
+      steps?: Array<{
+        name?: string;
+        distance: number;
+        duration: number;
+        maneuver: {
+          type: string;
+          modifier?: string;
+          location: [number, number];
+        };
+      }>;
+    }>;
+  }>;
+};
+
+function parseOsrmRoute(
+  route: NonNullable<OsrmRouteJson["routes"]>[0],
+  fallback: Array<{ lat: number; lon: number }>
+): RoadRouteWithSteps {
+  const coords = (route.geometry?.coordinates ?? []).map(([lon, lat]) => ({ lat, lon }));
+  const coordinates = coords.length > 0 ? coords : fallback;
+
+  const legs: OsrmLeg[] = (route.legs ?? []).map((leg) => ({
+    distance: leg.distance,
+    duration: leg.duration,
+    steps: (leg.steps ?? []).map((step) => ({
+      name: step.name ?? "",
+      distance: step.distance,
+      duration: step.duration,
+      maneuver: {
+        type: step.maneuver.type,
+        modifier: step.maneuver.modifier,
+        location: {
+          lat: step.maneuver.location[1],
+          lon: step.maneuver.location[0],
+        },
+      },
+    })),
+  }));
+
+  return {
+    coordinates: simplifyCoordinates(coordinates, 500),
+    distanceKm: route.distance / 1000,
+    durationMin: Math.round(route.duration / 60),
+    legs,
+  };
+}
+
+function buildOsrmUrl(points: Array<{ lat: number; lon: number }>, steps: boolean): string {
+  const coords = points.map((p) => `${p.lon},${p.lat}`).join(";");
+  return `${OSRM_BASE}/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=${steps ? "true" : "false"}`;
+}
+
 export async function fetchRoadRoute(
   from: { lat: number; lon: number },
   to: { lat: number; lon: number }
@@ -37,6 +121,33 @@ export async function fetchRoadRoute(
       durationMin: Math.round(route.duration / 60),
       coordinates: simplifyCoordinates(coords, 150),
     };
+  } catch {
+    return { error: "ROUTING_UNAVAILABLE" };
+  }
+}
+
+export async function fetchRoadRouteWithSteps(
+  origin: { lat: number; lon: number },
+  destination: { lat: number; lon: number },
+  waypoints: Array<{ lat: number; lon: number }> = []
+): Promise<RoadRouteWithSteps | { error: string }> {
+  const points = [origin, ...waypoints, destination];
+  const url = buildOsrmUrl(points, true);
+
+  try {
+    const res = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(12000),
+    });
+
+    if (!res.ok) return { error: "ROUTING_UNAVAILABLE" };
+
+    const data = (await res.json()) as OsrmRouteJson;
+    if (data.code !== "Ok" || !data.routes?.[0]) {
+      return { error: "INVALID_TRIP_INPUT" };
+    }
+
+    return parseOsrmRoute(data.routes[0], points);
   } catch {
     return { error: "ROUTING_UNAVAILABLE" };
   }
