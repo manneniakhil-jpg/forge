@@ -388,6 +388,9 @@ export async function planTripAlternatives(
     const durationA = a.totalDrivingMin + a.totalChargingMin;
     const durationB = b.totalDrivingMin + b.totalChargingMin;
     if (durationA !== durationB) return durationA - durationB;
+    if (a.chargeStops.length !== b.chargeStops.length) {
+      return a.chargeStops.length - b.chargeStops.length;
+    }
     return a.totalDistanceKm - b.totalDistanceKm;
   });
 }

@@ -49,7 +49,6 @@ export default function TripsPage() {
     null
   );
   const [loading, setLoading] = useState(false);
-  const [loadingAlternatives, setLoadingAlternatives] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [originLocating, setOriginLocating] = useState(true);
   const [swapStopIndex, setSwapStopIndex] = useState<number | null>(null);
@@ -115,17 +114,13 @@ export default function TripsPage() {
   }, [router]);
 
   const runPlan = useCallback(
-    async (from: GeocodeHit, to: GeocodeHit, altCount = 1) => {
+    async (from: GeocodeHit, to: GeocodeHit) => {
       const requestId = ++planRequestRef.current;
       setLoading(true);
-      if (altCount <= 1) {
-        setError(null);
-        setPlan(null);
-        setPlanOptions([]);
-        setSelectedPlanIndex(0);
-      } else {
-        setLoadingAlternatives(true);
-      }
+      setError(null);
+      setPlan(null);
+      setPlanOptions([]);
+      setSelectedPlanIndex(0);
       setNavUserLocation(from.label === "Current location" ? { lat: from.lat, lon: from.lon } : null);
 
       try {
@@ -136,7 +131,7 @@ export default function TripsPage() {
             destination: { lat: to.lat, lon: to.lon, label: to.label },
             departureSocPct: parseInt(departureSocRef.current, 10),
             reserveSocPct: parseInt(reserveSocRef.current, 10),
-            alternatives: altCount,
+            alternatives: 3,
           }),
         });
         if (requestId !== planRequestRef.current) return;
@@ -144,10 +139,8 @@ export default function TripsPage() {
         setPlanOptions(options);
         setSelectedPlanIndex(0);
         setPlan(options[0]);
-        setError(null);
       } catch (e) {
         if (requestId !== planRequestRef.current) return;
-        if (altCount > 1) return;
         const err = e as { message?: string; code?: string; fields?: Record<string, string> };
         if (err.code === "NO_VIABLE_ROUTE") {
           if (err.fields?.reason === "no_chargers_on_route") {
@@ -169,10 +162,7 @@ export default function TripsPage() {
           setError(err.message || "Could not plan route");
         }
       } finally {
-        if (requestId === planRequestRef.current) {
-          setLoading(false);
-          setLoadingAlternatives(false);
-        }
+        if (requestId === planRequestRef.current) setLoading(false);
       }
     },
     [departureSoc]
@@ -284,27 +274,12 @@ export default function TripsPage() {
         <p className="text-center text-slate-400">Planning your route and charge stops…</p>
       )}
 
-      {plan && planOptions.length <= 1 && !loadingAlternatives && (
-        <Button
-          type="button"
-          variant="secondary"
-          className="w-full"
-          disabled={!origin || !destination || loadingAlternatives}
-          onClick={() => origin && destination && runPlan(origin, destination, 3)}
-        >
-          Compare route options
-        </Button>
-      )}
-
-      {loadingAlternatives && (
-        <p className="text-center text-sm text-slate-400">Finding alternate routes…</p>
-      )}
-
       {plan && planOptions.length > 1 && (
         <div className="flex flex-wrap gap-2">
           {planOptions.map((option, index) => {
             const totalMin = option.totalDrivingMin + option.totalChargingMin;
             const isSelected = index === selectedPlanIndex;
+            const label = index === 0 ? "Best route" : `Alternative ${index + 1}`;
             return (
               <button
                 key={option.id}
@@ -320,7 +295,7 @@ export default function TripsPage() {
                     : "border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-500"
                 }`}
               >
-                <span className="font-medium">Route {index + 1}</span>
+                <span className="font-medium">{label}</span>
                 <span className="mt-0.5 block text-xs opacity-80">
                   {totalMin} min · {option.chargeStops.length} stop
                   {option.chargeStops.length === 1 ? "" : "s"}
@@ -335,10 +310,9 @@ export default function TripsPage() {
         <Card className="space-y-4">
           <div className="flex items-center gap-2">
             <Route className="h-5 w-5 text-emerald-400" />
-            <h2 className="text-lg font-bold">Your route</h2>
-            {loadingAlternatives && (
-              <span className="text-xs text-slate-500">Updating options…</span>
-            )}
+            <h2 className="text-lg font-bold">
+              {selectedPlanIndex === 0 ? "Best route" : "Your route"}
+            </h2>
           </div>
 
           <TripRouteMap plan={plan} userLocation={navUserLocation} />
