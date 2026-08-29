@@ -14,6 +14,7 @@
   --charge-yellow: #ffe566;
   --text: #e8f4ff;
   --muted: #7eb8d4;
+  --brand-ev-size: clamp(3rem, 12vw, 5rem);
 }
 
 html {
