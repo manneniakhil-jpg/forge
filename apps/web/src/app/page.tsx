@@ -7,6 +7,7 @@ import { Zap } from "lucide-react";
 import { Button, Card, Badge } from "@/components/ui";
 import { StaleDataBanner } from "@/components/stale-data-banner";
 import { HomeBatteryCard } from "@/components/home-battery-card";
+import { HomeClosestCharger } from "@/components/home-closest-charger";
 import { HomeDashboard } from "@/components/home-dashboard";
 import { apiFetch, getAuthToken } from "@/lib/utils";
 import { getCurrentLocation } from "@/lib/geolocation";
@@ -368,6 +369,12 @@ export default function HomePage() {
         onSetSoc={setSoc}
       />
 
+      <HomeClosestCharger
+        nearbyFast={nearbyFast}
+        nearbyLoading={nearbyLoading}
+        userLocation={userLocation}
+      />
+
       {session && (
         <Card className="border-emerald-700/50 charging-pulse">
           <div className="flex items-center justify-between gap-2">
@@ -413,7 +420,6 @@ export default function HomePage() {
         connectorStandards={data.activeVehicle.connectorStandards}
         weekly={weekly}
         nearbyFast={nearbyFast}
-        nearbyLoading={nearbyLoading}
         favorites={favorites}
         reachCheck={reachCheck}
         userLocation={userLocation}
