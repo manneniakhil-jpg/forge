@@ -321,7 +321,7 @@ export default function HomePage() {
         <Zap className="h-12 w-12 text-emerald-500" />
         <h1 className="text-2xl font-bold">Add your vehicle</h1>
         <p className="max-w-sm text-slate-400">
-          Set up your EV profile so range estimates and charger filters match your vehicle.
+          Set up your car or e-bike so range estimates and charger filters match what you ride.
         </p>
         <Link href="/auth?setup=1">
           <Button>Add vehicle</Button>

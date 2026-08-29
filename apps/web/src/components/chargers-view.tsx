@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import type { ChargingStation, ConnectorStandard } from "@ev/domain";
+import type { ChargingStation, ConnectorStandard, VehicleKind } from "@ev/domain";
 import { DirectionsButton } from "@/components/directions-button";
 import { FitsYourCarBadge, NoMatchBadge } from "@/components/fits-your-car-badge";
 import {
@@ -60,6 +60,7 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
   const [searchPlace, setSearchPlace] = useState<GeocodeHit | null>(null);
   const [sortBy, setSortBy] = useState<ChargerSortMode>("vehicle");
   const [vehicleConnectors, setVehicleConnectors] = useState<ConnectorStandard[]>([]);
+  const [vehicleKind, setVehicleKind] = useState<VehicleKind>("car");
   const [vehicleLabel, setVehicleLabel] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [locating, setLocating] = useState(false);
@@ -190,8 +191,11 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
     fetch("/api/me", { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then((data) => {
-        if (data.activeVehicle?.connectorStandards) {
-          setVehicleConnectors(data.activeVehicle.connectorStandards);
+        if (data.activeVehicle) {
+          setVehicleKind(data.activeVehicle.vehicleKind === "bike" ? "bike" : "car");
+          if (data.activeVehicle.connectorStandards) {
+            setVehicleConnectors(data.activeVehicle.connectorStandards);
+          }
           setVehicleLabel(`${data.activeVehicle.make} ${data.activeVehicle.model}`);
         }
       })
@@ -218,13 +222,15 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">Find Chargers</h1>
+        <h1 className="text-2xl font-bold">{isBike ? "Charging spots" : "Find Chargers"}</h1>
         <p className="text-slate-400">
-          {sortBy === "vehicle" && vehicleConnectors.length > 0
-            ? `Sorted for your ${vehicleLabel ?? "vehicle"} (${vehicleConnectors.join(", ")}) near ${locationSubtitle}`
-            : sortBy === "fast_charge"
-              ? `Sorted by fastest charging speed near ${locationSubtitle}`
-              : `Stations near ${locationSubtitle}`}
+          {isBike
+            ? `Level 2 and outlet-friendly locations near ${locationSubtitle} — map hidden for e-bikes`
+            : sortBy === "vehicle" && vehicleConnectors.length > 0
+              ? `Sorted for your ${vehicleLabel ?? "vehicle"} (${vehicleConnectors.join(", ")}) near ${locationSubtitle}`
+              : sortBy === "fast_charge"
+                ? `Sorted by fastest charging speed near ${locationSubtitle}`
+                : `Stations near ${locationSubtitle}`}
           {dataSource === "google_places" && (
             <span className="text-slate-500"> · via Google Maps</span>
           )}
@@ -324,7 +330,7 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
         </p>
       )}
 
-      {!loading && (
+      {!loading && !isBike && (
         <ChargerMap
           center={center}
           userLocation={userLocation}
@@ -334,6 +340,13 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
           onLocateMe={handleLocateMe}
           locating={locating}
         />
+      )}
+
+      {!loading && isBike && (
+        <p className="rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-sm text-slate-400">
+          E-bikes usually charge at home or with a portable adapter. Use the list below for nearby
+          Type 2 outlets — switch to a car in Settings to see the station map.
+        </p>
       )}
 
       {loading ? (
