@@ -2,7 +2,7 @@
 
 A consumer-facing web app that reduces the daily friction of owning an electric vehicle. See your charge level, find compatible nearby chargers on a map, plan trips with charge stops, and track charging costs.
 
-Built from the EV Companion requirements and design specification.
+Built from the EV Companion requirements and design specification — see [`docs/Ev_maps.txt`](docs/Ev_maps.txt).
 
 ## Features
 
