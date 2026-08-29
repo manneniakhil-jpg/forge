@@ -191,7 +191,7 @@ export default function HomePage() {
         <Zap className="h-12 w-12 text-emerald-500" />
         <h1 className="text-2xl font-bold">Add your vehicle</h1>
         <p className="max-w-sm text-slate-400">
-          Set up your EV profile so range estimates and charger filters match your car.
+          Set up your EV profile so range estimates and charger filters match your vehicle.
         </p>
         <Link href="/auth?setup=1">
           <Button>Add vehicle</Button>
@@ -356,7 +356,7 @@ export default function HomePage() {
             </div>
             <div>
               <p className="font-semibold">Find chargers</p>
-              <p className="text-sm text-slate-400">Near you, filtered for your car</p>
+              <p className="text-sm text-slate-400">Near you, filtered for your vehicle</p>
             </div>
           </Card>
         </Link>

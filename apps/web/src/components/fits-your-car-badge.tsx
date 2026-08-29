@@ -34,7 +34,7 @@ export function FitsYourCarBadge({
     <span
       className={`inline-flex shrink-0 items-center rounded-full border border-emerald-500/50 bg-emerald-950/60 px-2.5 py-1 text-xs font-medium leading-none text-emerald-200 whitespace-nowrap ${className}`}
     >
-      Fits your car{detail}
+      Fits your vehicle{detail}
     </span>
   );
 }

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ChargingStation, ConnectorStandard } from "@ev/domain";
 import { DirectionsButton } from "@/components/directions-button";
-import { FitsYourCarBadge } from "@/components/fits-your-car-badge";
+import { FitsYourCarBadge, NoMatchBadge } from "@/components/fits-your-car-badge";
 import {
   sortChargerStations,
   stationMaxCompatiblePowerKw,
@@ -456,7 +456,7 @@ function StationDetail({
                 <span className="font-medium">
                   {c.standard} · {c.maxPowerKw} kW
                   {matchesVehicle && vehicleConnectors.length > 0 && (
-                    <span className="ml-2 text-xs font-normal text-emerald-300">Fits your car</span>
+                    <span className="ml-2 text-xs font-normal text-emerald-300">Fits your vehicle</span>
                   )}
                 </span>
                 <span className="text-sm text-slate-400">{c.availability}</span>
