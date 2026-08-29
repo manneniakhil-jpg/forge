@@ -21,17 +21,31 @@ const userIcon = L.divIcon({
   iconAnchor: [8, 8],
 });
 
-function Recenter({ lat, lon }: { lat: number; lon: number }) {
+function MapRecenter({
+  lat,
+  lon,
+  zoom,
+}: {
+  lat: number;
+  lon: number;
+  zoom?: number;
+}) {
   const map = useMap();
   useEffect(() => {
-    map.setView([lat, lon], map.getZoom());
-  }, [lat, lon, map]);
+    const targetZoom = zoom ?? map.getZoom();
+    if (map.getZoom() === targetZoom) {
+      map.setView([lat, lon], targetZoom, { animate: true });
+    } else {
+      map.flyTo([lat, lon], targetZoom, { duration: 0.6 });
+    }
+  }, [lat, lon, zoom, map]);
   return null;
 }
 
 export function ChargerMap({
   center,
   userLocation,
+  mapZoom = 12,
   stations,
   selected,
   onSelect,
@@ -40,6 +54,7 @@ export function ChargerMap({
 }: {
   center: { lat: number; lon: number };
   userLocation?: { lat: number; lon: number } | null;
+  mapZoom?: number;
   stations: Array<ChargingStation & { distanceKm: number }>;
   selected: (ChargingStation & { distanceKm: number }) | null;
   onSelect: (s: ChargingStation & { distanceKm: number }) => void;
@@ -51,18 +66,23 @@ export function ChargerMap({
       {onLocateMe && (
         <button
           type="button"
-          onClick={onLocateMe}
+          onClick={(e) => {
+            e.stopPropagation();
+            onLocateMe();
+          }}
           disabled={locating}
           className="absolute right-3 top-3 z-[1000] flex min-h-[44px] min-w-[44px] items-center justify-center gap-2 rounded-xl border border-slate-600 bg-slate-900/95 px-3 py-2 text-sm font-medium text-slate-100 shadow-lg backdrop-blur hover:bg-slate-800 disabled:opacity-60"
           aria-label="Locate me"
         >
-          <LocateFixed className={`h-[18px] w-[18px] ${locating ? "animate-pulse text-emerald-400" : "text-emerald-400"}`} />
+          <LocateFixed
+            className={`h-[18px] w-[18px] ${locating ? "animate-pulse text-emerald-400" : "text-emerald-400"}`}
+          />
           <span className="hidden sm:inline">{locating ? "Locating…" : "Locate me"}</span>
         </button>
       )}
       <MapContainer
         center={[center.lat, center.lon]}
-        zoom={12}
+        zoom={mapZoom}
         className="h-full w-full"
         scrollWheelZoom
       >
@@ -70,7 +90,7 @@ export function ChargerMap({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <Recenter lat={center.lat} lon={center.lon} />
+        <MapRecenter lat={center.lat} lon={center.lon} zoom={mapZoom} />
         {userLocation && (
           <Marker position={[userLocation.lat, userLocation.lon]} icon={userIcon}>
             <Popup>You are here</Popup>
@@ -91,7 +111,7 @@ export function ChargerMap({
           </Marker>
         ))}
         {selected && (
-          <Recenter lat={selected.latitude} lon={selected.longitude} />
+          <MapRecenter lat={selected.latitude} lon={selected.longitude} zoom={15} />
         )}
       </MapContainer>
     </div>

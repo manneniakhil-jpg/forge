@@ -45,6 +45,7 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
   const [directoryUnavailable, setDirectoryUnavailable] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
   const [locating, setLocating] = useState(false);
+  const [mapZoom, setMapZoom] = useState(12);
 
   const applyCachedResults = (lat: number, lon: number) => {
     const cached = getCachedChargerResults(getReachabilityCache());
@@ -110,6 +111,8 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
         (pos) => {
           const point = { lat: pos.coords.latitude, lon: pos.coords.longitude };
           setUserLocation(point);
+          setCenter(point);
+          setMapZoom(14);
           search(point.lat, point.lon);
         },
         () => search(initialLat, initialLon)
@@ -122,9 +125,12 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
   const locateMe = async () => {
     setLocating(true);
     setError(null);
+    setSelected(null);
     try {
       const point = await getCurrentLocation();
       setUserLocation(point);
+      setCenter(point);
+      setMapZoom(14);
       await search(point.lat, point.lon);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not get your location");
@@ -200,6 +206,7 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
       <MapView
         center={center}
         userLocation={userLocation}
+        mapZoom={mapZoom}
         stations={stations}
         selected={selected}
         onSelect={setSelected}
