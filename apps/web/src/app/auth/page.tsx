@@ -7,6 +7,7 @@ import { Button, Input, Label, Card } from "@/components/ui";
 import { apiFetch, setAuthToken, getAuthToken } from "@/lib/utils";
 import { notifyActiveVehicleChanged } from "@/lib/vehicle-events";
 import type { VehicleKind } from "@ev/domain";
+import { APP_NAME, APP_TAGLINE } from "@/lib/brand";
 
 function AuthForm() {
   const router = useRouter();
@@ -120,9 +121,10 @@ function AuthForm() {
         <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-600">
           <Battery className="h-8 w-8 text-white" />
         </div>
-        <h1 className="text-3xl font-bold">EV Companion</h1>
+        <h1 className="text-3xl font-bold">{APP_NAME}</h1>
+        <p className="text-sm font-medium text-emerald-400/90">{APP_TAGLINE}</p>
         <p className="max-w-sm text-slate-400">
-          Charge smarter — see your battery, find compatible chargers, and plan road trips.
+          See your battery, find compatible chargers, and plan road trips — all in one place.
         </p>
       </div>
 

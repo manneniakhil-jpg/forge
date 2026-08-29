@@ -1,10 +1,22 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AppShell } from "@/components/app-shell";
+import { APP_DESCRIPTION, APP_NAME, APP_URL, APP_TAGLINE } from "@/lib/brand";
 
 export const metadata: Metadata = {
-  title: "EV Companion",
-  description: "See charge state, find chargers, plan trips, and track charging costs.",
+  title: {
+    default: APP_NAME,
+    template: `%s · ${APP_NAME}`,
+  },
+  description: APP_DESCRIPTION,
+  applicationName: APP_NAME,
+  metadataBase: new URL(APP_URL),
+  openGraph: {
+    title: APP_NAME,
+    description: APP_TAGLINE,
+    siteName: APP_NAME,
+    url: APP_URL,
+  },
 };
 
 export const viewport: Viewport = {

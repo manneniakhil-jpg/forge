@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Battery, History, MapPin, Route, LogOut, Settings } from "lucide-react";
 import { cn, clearAuthToken } from "@/lib/utils";
+import { APP_NAME, APP_TAGLINE } from "@/lib/brand";
 
 const nav = [
   { href: "/", label: "Home", icon: Battery },
@@ -27,7 +28,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600">
               <Battery className="h-5 w-5 text-white" aria-hidden />
             </div>
-            <span className="text-lg font-semibold tracking-tight">EV Companion</span>
+            <div className="leading-tight">
+              <span className="text-lg font-semibold tracking-tight">{APP_NAME}</span>
+              <span className="hidden text-xs text-slate-500 sm:block">{APP_TAGLINE}</span>
+            </div>
           </div>
           <div className="flex items-center gap-1">
             <Link
