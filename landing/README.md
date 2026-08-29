@@ -1,6 +1,6 @@
 # drieEV landing page
 
-Static “Launching soon” site for [drieEv.com](https://drieEv.com).
+Static sales page for **drieEv.com** — premium EV domain with brand name **drieEV** and tagline **Drive EV with ease**.
 
 ## Preview locally
 
