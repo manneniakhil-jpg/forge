@@ -7,12 +7,12 @@ import { Route } from "lucide-react";
 import { Button, Card, Input, Label } from "@/components/ui";
 import { ChargeStopPicker } from "@/components/charge-stop-picker";
 import { TripNavigationPanel } from "@/components/trip-navigation-panel";
-import { PlaceSearchField, type GeocodeHit } from "@/components/place-search-field";
+import { TripRouteSearch } from "@/components/trip-route-search";
+import type { GeocodeHit } from "@/components/place-search-field";
 import { chargeStopReason } from "@/lib/trip-station-scoring";
 import { getCurrentLocation } from "@/lib/geolocation";
 import { loadRecentDestinations, saveRecentDestination, type SavedPlace } from "@/lib/home-storage";
 import { SavedTripsList } from "@/components/saved-trips-list";
-import { RecentSearches } from "@/components/recent-searches";
 import { apiFetch, getAuthToken } from "@/lib/utils";
 import type { TripPlan } from "@ev/domain";
 
@@ -249,47 +249,24 @@ export default function TripsPage() {
         </p>
       </div>
 
-      <Card className="space-y-4">
-        <PlaceSearchField
-          id="destination"
-          label="Where to?"
-          hint="Search your destination"
-          placeholder="City, address, or landmark…"
-          value={destination}
-          onChange={handleDestinationChange}
-          onError={setError}
-          locationBias={origin ?? navUserLocation}
-        />
-
-        <RecentSearches
-          places={recentSearches}
-          onSelect={handleRecentSearchSelect}
-          activePlace={destination}
-        />
-      </Card>
+      <TripRouteSearch
+        destination={destination}
+        onDestinationChange={handleDestinationChange}
+        origin={origin}
+        onOriginChange={handleOriginChange}
+        originLocating={originLocating}
+        recentSearches={recentSearches}
+        onRecentSearchSelect={handleRecentSearchSelect}
+        onError={setError}
+        locationBias={navUserLocation}
+        navUserLocation={navUserLocation}
+      />
 
       <SavedTripsList onSelect={(id) => void loadSavedTrip(id)} />
 
-      <Card className="space-y-5">
-        <PlaceSearchField
-          id="origin"
-          label="From"
-          hint={
-            originLocating
-              ? "Detecting your location…"
-              : "Starting point — tap locate or type another place"
-          }
-          placeholder="Current location or search a start point…"
-          value={origin}
-          onChange={handleOriginChange}
-          onError={setError}
-          showLocateMe
-          locationBias={navUserLocation ?? origin}
-        />
-
-        {destination && (
-          <>
-            <div className="grid grid-cols-2 gap-3">
+      {destination && (
+        <Card className="space-y-5">
+          <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="departureSoc">Current charge (%)</Label>
                 <Input
@@ -322,9 +299,8 @@ export default function TripsPage() {
             >
               {loading ? "Updating route…" : "Update route for charge levels"}
             </Button>
-          </>
-        )}
-      </Card>
+        </Card>
+      )}
 
       {error && (
         <p className="rounded-xl bg-red-900/30 px-4 py-3 text-sm text-red-200" role="alert">
