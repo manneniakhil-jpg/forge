@@ -1,9 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import type { ChargingStation } from "@ev/domain";
+import type { ChargingStation, ConnectorStandard } from "@ev/domain";
 import { DirectionsButton } from "@/components/directions-button";
+import {
+  sortChargerStations,
+  stationMaxCompatiblePowerKw,
+  stationMaxPowerKw,
+  type ChargerSortMode,
+  isStationCompatible,
+} from "@/lib/charger-sort";
 import {
   cacheChargerResults,
   cacheFavorites,
@@ -49,6 +56,20 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
   const [locating, setLocating] = useState(false);
   const [mapZoom, setMapZoom] = useState(12);
+  const [sortBy, setSortBy] = useState<ChargerSortMode>("vehicle");
+  const [vehicleConnectors, setVehicleConnectors] = useState<ConnectorStandard[]>([]);
+  const [vehicleLabel, setVehicleLabel] = useState<string | null>(null);
+  const [favorites, setFavorites] = useState<string[]>([]);
+
+  const sortedStations = useMemo(
+    () =>
+      sortChargerStations(stations, {
+        sortBy,
+        vehicleConnectors,
+        favoriteIds: favorites,
+      }),
+    [stations, sortBy, vehicleConnectors, favorites]
+  );
 
   const applyCachedResults = (lat: number, lon: number) => {
     const cached = getCachedChargerResults(getReachabilityCache());
@@ -96,6 +117,9 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
       setFallbackUsed(data.fallbackUsed);
       setRegionalDemoAdded(Boolean(data.regionalDemoAdded));
       setDataSource(data.dataSource ?? "local_seed");
+      if (Array.isArray(data.favorites)) {
+        setFavorites(data.favorites);
+      }
       setCenter({ lat, lon });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Search failed";
@@ -111,6 +135,21 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const token = localStorage.getItem("ev_session_token");
+    if (!token) return;
+
+    fetch("/api/me", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.activeVehicle?.connectorStandards) {
+          setVehicleConnectors(data.activeVehicle.connectorStandards);
+          setVehicleLabel(`${data.activeVehicle.make} ${data.activeVehicle.model}`);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -151,7 +190,11 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
       <div>
         <h1 className="text-2xl font-bold">Find Chargers</h1>
         <p className="text-slate-400">
-          Stations near you that match your vehicle
+          {sortBy === "vehicle" && vehicleConnectors.length > 0
+            ? `Sorted for your ${vehicleLabel ?? "vehicle"} (${vehicleConnectors.join(", ")})`
+            : sortBy === "fast_charge"
+              ? "Sorted by fastest charging speed"
+              : "Stations near you"}
           {dataSource === "google_places" && (
             <span className="text-slate-500"> · via Google Maps</span>
           )}
@@ -159,6 +202,16 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
       </div>
 
       <div className="flex flex-wrap gap-3">
+        <select
+          className="h-11 rounded-xl border border-slate-600 bg-slate-900 px-3 text-sm"
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as ChargerSortMode)}
+          aria-label="Sort chargers"
+        >
+          <option value="vehicle">My vehicle</option>
+          <option value="fast_charge">Fastest charge</option>
+          <option value="distance">Nearest</option>
+        </select>
         <select
           className="h-11 rounded-xl border border-slate-600 bg-slate-900 px-3 text-sm"
           value={filters.radiusKm}
@@ -232,7 +285,7 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
         center={center}
         userLocation={userLocation}
         mapZoom={mapZoom}
-        stations={stations}
+        stations={sortedStations}
         selected={selected}
         onSelect={setSelected}
         onLocateMe={locateMe}
@@ -243,7 +296,14 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
         <p className="text-center text-slate-400">Searching for chargers…</p>
       ) : (
         <div className="space-y-3">
-          {stations.map((station) => (
+          {sortedStations.map((station) => {
+            const compatible = isStationCompatible(station, vehicleConnectors);
+            const topPower =
+              sortBy === "fast_charge"
+                ? stationMaxPowerKw(station)
+                : stationMaxCompatiblePowerKw(station, vehicleConnectors);
+
+            return (
             <div
               key={station.id}
               className="flex items-start gap-3 rounded-2xl border border-slate-700 bg-slate-900 p-4 transition hover:border-emerald-600/50"
@@ -258,29 +318,49 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
                     <p className="font-semibold">{station.operatorName}</p>
                     <p className="text-sm text-slate-400">
                       {station.distanceKm.toFixed(1)} km · {station.networkId.replace(/_/g, " ")}
+                      {topPower > 0 && (
+                        <span className="text-slate-500"> · up to {topPower} kW</span>
+                      )}
                     </p>
                   </div>
-                  {station.outsideRadius && (
-                    <span className="rounded-full bg-amber-900/50 px-2 py-0.5 text-xs text-amber-300">
-                      Outside radius
-                    </span>
-                  )}
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    {vehicleConnectors.length > 0 && compatible && (
+                      <span className="rounded-full bg-emerald-900/40 px-2 py-0.5 text-xs text-emerald-300">
+                        Fits your car
+                      </span>
+                    )}
+                    {vehicleConnectors.length > 0 && !compatible && (
+                      <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-500">
+                        No match
+                      </span>
+                    )}
+                    {station.outsideRadius && (
+                      <span className="rounded-full bg-amber-900/50 px-2 py-0.5 text-xs text-amber-300">
+                        Outside radius
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1.5">
-                  {station.connectors.map((c) => (
+                  {station.connectors.map((c) => {
+                    const matchesVehicle = vehicleConnectors.includes(c.standard);
+                    return (
                     <span
                       key={c.id}
                       className={`rounded-full px-2 py-0.5 text-xs ${
-                        c.availability === "Available"
-                          ? "bg-emerald-900/50 text-emerald-300"
-                          : c.availability === "Occupied"
-                            ? "bg-amber-900/50 text-amber-300"
-                            : "bg-slate-700 text-slate-400"
+                        matchesVehicle
+                          ? "border border-emerald-600/60 bg-emerald-900/50 text-emerald-200"
+                          : c.availability === "Available"
+                            ? "bg-emerald-900/50 text-emerald-300"
+                            : c.availability === "Occupied"
+                              ? "bg-amber-900/50 text-amber-300"
+                              : "bg-slate-700 text-slate-400"
                       }`}
                     >
                       {c.standard} {c.maxPowerKw}kW
                     </span>
-                  ))}
+                    );
+                  })}
                 </div>
               </button>
               <DirectionsButton
@@ -290,7 +370,8 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
                 className="shrink-0 self-center"
               />
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -298,6 +379,7 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
         <StationDetail
           station={selected}
           userLocation={userLocation}
+          vehicleConnectors={vehicleConnectors}
           onClose={() => setSelected(null)}
           onFavorite={async () => {
             await fetch(`/api/favorites/${selected.id}`, {
@@ -329,12 +411,14 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
 function StationDetail({
   station,
   userLocation,
+  vehicleConnectors,
   onClose,
   onFavorite,
   onStartCharge,
 }: {
   station: ChargingStation & { distanceKm: number };
   userLocation: { lat: number; lon: number } | null;
+  vehicleConnectors: ConnectorStandard[];
   onClose: () => void;
   onFavorite: () => void;
   onStartCharge: (connectorId: string) => void;
@@ -363,10 +447,22 @@ function StationDetail({
         </div>
         <p className="mb-4 text-sm text-slate-300">{station.accessRules}</p>
         <div className="space-y-3">
-          {station.connectors.map((c) => (
-            <div key={c.id} className="rounded-xl border border-slate-700 p-3">
+          {station.connectors.map((c) => {
+            const matchesVehicle = vehicleConnectors.includes(c.standard);
+            return (
+            <div
+              key={c.id}
+              className={`rounded-xl border p-3 ${
+                matchesVehicle ? "border-emerald-600/50 bg-emerald-950/20" : "border-slate-700"
+              }`}
+            >
               <div className="flex items-center justify-between">
-                <span className="font-medium">{c.standard} · {c.maxPowerKw} kW</span>
+                <span className="font-medium">
+                  {c.standard} · {c.maxPowerKw} kW
+                  {matchesVehicle && (
+                    <span className="ml-2 text-xs font-normal text-emerald-400">Your connector</span>
+                  )}
+                </span>
                 <span className="text-sm text-slate-400">{c.availability}</span>
               </div>
               <p className="text-sm text-slate-400">
@@ -381,7 +477,8 @@ function StationDetail({
                 </button>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
         <button
           onClick={onFavorite}
