@@ -225,34 +225,50 @@ export async function queryCorridorAsync(
   corridorKm = 30,
   seedNear?: { lat: number; lon: number }
 ): Promise<ChargingStation[]> {
-  let results = queryCorridor(points, connectorStandards, corridorKm);
+  const corridorPoints =
+    seedNear && !points.some((p) => p.lat === seedNear.lat && p.lon === seedNear.lon)
+      ? [...points, seedNear]
+      : points;
+
+  let results = queryCorridor(corridorPoints, connectorStandards, corridorKm);
   const seen = new Set(results.map((s) => s.id));
 
-  if (isGooglePlacesConfigured() && points.length > 0) {
-    const samples = pickCorridorSamplePoints(points, 6);
+  if (seedNear) {
+    for (const station of searchStationsInRadius(seedNear.lat, seedNear.lon, corridorKm)) {
+      if (seen.has(station.id)) continue;
+      if (!filterStationsAlongCorridor([station], corridorPoints, corridorKm, connectorStandards).length) {
+        continue;
+      }
+      seen.add(station.id);
+      results.push(station);
+    }
+  }
+
+  if (isGooglePlacesConfigured() && corridorPoints.length > 0) {
+    const samples = pickCorridorSamplePoints(corridorPoints, 8);
     const searchRadiusKm = Math.min(corridorKm, 50);
 
     for (const sample of samples) {
-      for (const standard of connectorStandards) {
-        try {
-          const googleStations = await fetchNearbyEvStations({
-            lat: sample.lat,
-            lon: sample.lon,
-            radiusKm: searchRadiusKm,
-            connectorStandard: standard,
-          });
-          for (const station of googleStations) {
-            upsertStation(station);
-            if (seen.has(station.id)) continue;
-            if (!filterStationsAlongCorridor([station], points, corridorKm, connectorStandards).length) {
-              continue;
-            }
-            seen.add(station.id);
-            results.push(station);
+      try {
+        const googleStations = await fetchNearbyEvStations({
+          lat: sample.lat,
+          lon: sample.lon,
+          radiusKm: searchRadiusKm,
+        });
+        for (const station of googleStations) {
+          upsertStation(station);
+          if (seen.has(station.id)) continue;
+          if (
+            !filterStationsAlongCorridor([station], corridorPoints, corridorKm, connectorStandards)
+              .length
+          ) {
+            continue;
           }
-        } catch (error) {
-          console.error("[chargers] Google corridor search failed:", error);
+          seen.add(station.id);
+          results.push(station);
         }
+      } catch (error) {
+        console.error("[chargers] Google corridor search failed:", error);
       }
     }
   }
@@ -264,7 +280,20 @@ export async function queryCorridorAsync(
       const added = seedStationsNearPoint(db, seedPoint.lat, seedPoint.lon);
       if (added) {
         ensureH3Index();
-        results = queryCorridor(points, connectorStandards, corridorKm);
+        results = queryCorridor(corridorPoints, connectorStandards, corridorKm);
+      } else {
+        ensureH3Index();
+        for (const station of searchStationsInRadius(seedPoint.lat, seedPoint.lon, corridorKm)) {
+          if (seen.has(station.id)) continue;
+          if (
+            !filterStationsAlongCorridor([station], corridorPoints, corridorKm, connectorStandards)
+              .length
+          ) {
+            continue;
+          }
+          seen.add(station.id);
+          results.push(station);
+        }
       }
     }
   }

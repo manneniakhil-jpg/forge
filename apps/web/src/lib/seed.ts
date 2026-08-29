@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3";
 import type { ConnectorStandard } from "@ev/domain";
+import { cellForCoordinates } from "./h3-index";
 
 type SeedStation = {
   name: string;
@@ -79,6 +80,9 @@ function insertStationList(
   const insertFeed = db.prepare(`
     INSERT OR IGNORE INTO feed_health (network_id, last_success_at) VALUES (?, ?)
   `);
+  const insertH3 = db.prepare(`
+    INSERT OR REPLACE INTO h3_cell_stations (h3_index, station_id, indexed_at) VALUES (?, ?, ?)
+  `);
   const existsStmt = db.prepare(`SELECT id FROM charging_stations WHERE id = ?`);
 
   stations.forEach((station, idx) => {
@@ -106,6 +110,7 @@ function insertStationList(
       );
     });
     insertFeed.run(station.network, now);
+    insertH3.run(cellForCoordinates(station.lat, station.lon), stationId, now);
   });
 }
 

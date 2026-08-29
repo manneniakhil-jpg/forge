@@ -75,14 +75,6 @@ export async function fetchNearbyEvStations(params: {
     },
   };
 
-  const connectorType = googleConnectorFilter(params.connectorStandard);
-  if (connectorType || params.minPowerKw) {
-    body.evOptions = {
-      ...(connectorType ? { connectorTypes: [connectorType] } : {}),
-      ...(params.minPowerKw ? { minimumChargingRateKw: params.minPowerKw } : {}),
-    };
-  }
-
   const res = await fetch(PLACES_BASE, {
     method: "POST",
     headers: {

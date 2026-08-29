@@ -94,9 +94,11 @@ function ensureH3Schema(db: Database.Database): void {
 export function ensureH3Index(): void {
   const db = getDb();
   ensureH3Schema(db);
-  const indexed = db.prepare("SELECT COUNT(*) as c FROM h3_cell_stations").get() as { c: number };
+  const indexed = db
+    .prepare("SELECT COUNT(DISTINCT station_id) as c FROM h3_cell_stations")
+    .get() as { c: number };
   const stations = db.prepare("SELECT COUNT(*) as c FROM charging_stations").get() as { c: number };
-  if (stations.c > 0 && indexed.c === 0) {
+  if (stations.c > 0 && indexed.c < stations.c) {
     rebuildH3Index();
   }
 }
