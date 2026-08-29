@@ -229,6 +229,7 @@ body {
   }
 }
 
+@keyframes chargeGlow {
   0%,
   100% {
     opacity: 0.5;
