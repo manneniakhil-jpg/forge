@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { Route, MapPin, Search } from "lucide-react";
+import { Route } from "lucide-react";
 import { Button, Card, Input, Label } from "@/components/ui";
+import { PlaceSearchField, type GeocodeHit } from "@/components/place-search-field";
 import { apiFetch, getAuthToken } from "@/lib/utils";
 import type { TripPlan } from "@ev/domain";
 
@@ -20,6 +21,14 @@ const TripRouteMap = dynamic(
   }
 );
 
+const POPULAR_ORIGINS = [
+  "San Francisco, California",
+  "San Jose, California",
+  "Oakland, California",
+  "Los Angeles, California",
+  "Seattle, Washington",
+];
+
 const POPULAR_DESTINATIONS = [
   "San Diego, California",
   "Los Angeles, California",
@@ -27,45 +36,24 @@ const POPULAR_DESTINATIONS = [
   "Sacramento, California",
   "Lake Tahoe, California",
   "Monterey, California",
-  "Fresno, California",
   "Portland, Oregon",
   "Seattle, Washington",
-  "Phoenix, Arizona",
   "Denver, Colorado",
-  "Salt Lake City, Utah",
 ];
-
-interface GeocodeHit {
-  label: string;
-  lat: number;
-  lon: number;
-}
-
-async function searchPlaces(query: string): Promise<GeocodeHit[]> {
-  const res = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "Search failed");
-  return data.results ?? [];
-}
 
 export default function TripsPage() {
   const router = useRouter();
   const [departureSoc, setDepartureSoc] = useState("80");
   const [reserveSoc, setReserveSoc] = useState("10");
-  const [destinationQuery, setDestinationQuery] = useState("");
+  const [origin, setOrigin] = useState<GeocodeHit | null>(null);
   const [destination, setDestination] = useState<GeocodeHit | null>(null);
-  const [searchResults, setSearchResults] = useState<GeocodeHit[]>([]);
-  const [showResults, setShowResults] = useState(false);
-  const [origin, setOrigin] = useState<{ lat: number; lon: number; label: string } | null>(null);
   const [plan, setPlan] = useState<TripPlan | null>(null);
   const [loading, setLoading] = useState(false);
-  const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const searchRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!getAuthToken()) router.replace("/auth");
+
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -75,86 +63,45 @@ export default function TripsPage() {
             label: "Current location",
           });
         },
-        () => setOrigin({ lat: 37.7749, lon: -122.4194, label: "San Francisco" })
+        () => {
+          setOrigin({
+            lat: 37.7749,
+            lon: -122.4194,
+            label: "San Francisco, California, United States",
+          });
+        }
       );
+    } else {
+      setOrigin({
+        lat: 37.7749,
+        lon: -122.4194,
+        label: "San Francisco, California, United States",
+      });
     }
   }, [router]);
 
-  useEffect(() => {
-    const onClick = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        setShowResults(false);
-      }
-    };
-    document.addEventListener("click", onClick);
-    return () => document.removeEventListener("click", onClick);
-  }, []);
-
-  const runSearch = useCallback(async (query: string, autoSelectFirst = false): Promise<GeocodeHit | null> => {
-    if (query.trim().length < 2) {
-      setSearchResults([]);
-      return null;
-    }
-    setSearching(true);
-    setError(null);
-    try {
-      const results = await searchPlaces(query);
-      setSearchResults(results);
-      setShowResults(true);
-      if (results.length === 0) {
-        setDestination(null);
-        setError("No places found. Try a city, zip code, or full address.");
-        return null;
-      }
-      if (autoSelectFirst) {
-        setDestination(results[0]);
-        setDestinationQuery(results[0].label.split(",").slice(0, 2).join(","));
-        setShowResults(false);
-        return results[0];
-      }
-      return null;
-    } catch {
-      setError("Place search failed. Check your connection and try again.");
-      return null;
-    } finally {
-      setSearching(false);
-    }
-  }, []);
-
-  const onQueryChange = (value: string) => {
-    setDestinationQuery(value);
-    setDestination(null);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => runSearch(value), 450);
-  };
-
-  const selectDestination = (hit: GeocodeHit) => {
-    setDestination(hit);
-    setDestinationQuery(hit.label.split(",").slice(0, 3).join(","));
-    setShowResults(false);
-    setError(null);
-  };
-
   const planTrip = async () => {
-    if (!origin) return;
-    let dest = destination;
-    if (!dest) {
-      dest = await runSearch(destinationQuery, true);
+    setError(null);
+    let from = origin;
+    let to = destination;
+
+    if (!from) {
+      setError("Choose a starting point.");
+      return;
     }
-    if (!dest) {
-      setError("Pick a destination from the search results first.");
+    if (!to) {
+      setError("Choose a destination from the search results.");
       return;
     }
 
     setLoading(true);
-    setError(null);
     setPlan(null);
     try {
       const data = await apiFetch<{ plan: TripPlan }>("/api/trips", {
         method: "POST",
         body: JSON.stringify({
-          origin,
-          destination: { lat: dest.lat, lon: dest.lon, label: dest.label },
+          origin: { lat: from.lat, lon: from.lon, label: from.label },
+          destination: { lat: to.lat, lon: to.lon, label: to.label },
           departureSocPct: parseInt(departureSoc),
           reserveSocPct: parseInt(reserveSoc),
         }),
@@ -180,90 +127,36 @@ export default function TripsPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold">Plan a trip</h1>
-        <p className="text-slate-400">Search any city or address — not limited to presets</p>
+        <p className="text-slate-400">Set your start and end — search any city or address</p>
       </div>
 
-      <Card className="space-y-4">
-        <div ref={searchRef} className="relative">
-          <Label htmlFor="destination">Destination</Label>
-          <p className="mb-2 text-xs text-slate-500">
-            Type any place worldwide — e.g. &quot;Austin TX&quot;, &quot;1600 Amphitheatre Parkway&quot;
-          </p>
-          <div className="flex gap-2">
-            <Input
-              id="destination"
-              value={destinationQuery}
-              onChange={(e) => onQueryChange(e.target.value)}
-              onFocus={() => searchResults.length > 0 && setShowResults(true)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  runSearch(destinationQuery, true);
-                }
-              }}
-              placeholder="Search city, address, or landmark…"
-              autoComplete="off"
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => runSearch(destinationQuery)}
-              disabled={searching || destinationQuery.trim().length < 2}
-              aria-label="Search destination"
-            >
-              <Search className="h-4 w-4" />
-            </Button>
-          </div>
+      <Card className="space-y-5">
+        <div className="relative z-30">
+          <PlaceSearchField
+            id="origin"
+            label="From"
+            hint="Starting point — defaults to your location, but you can change it"
+            placeholder="Search starting city or address…"
+            value={origin}
+            onChange={setOrigin}
+            onError={setError}
+            quickPicks={POPULAR_ORIGINS}
+            quickPicksLabel="Popular starting points"
+          />
+        </div>
 
-          {showResults && searchResults.length > 0 && (
-            <ul
-              className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-600 bg-slate-900 shadow-xl"
-              role="listbox"
-              aria-label="Destination search results"
-            >
-              {searchResults.map((hit) => (
-                <li key={`${hit.lat}-${hit.lon}`}>
-                  <button
-                    type="button"
-                    role="option"
-                    onClick={() => selectDestination(hit)}
-                    className="w-full px-4 py-3 text-left text-sm hover:bg-slate-800 border-b border-slate-800 last:border-0 min-h-[44px]"
-                  >
-                    {hit.label}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {searching && (
-            <p className="mt-2 text-xs text-slate-500">Searching…</p>
-          )}
-
-          {destination && !showResults && (
-            <p className="mt-2 text-sm text-emerald-300/90 line-clamp-2">
-              Selected: {destination.label}
-            </p>
-          )}
-
-          <div className="mt-3">
-            <p className="mb-2 text-xs font-medium text-slate-500">Popular trips</p>
-            <div className="flex flex-wrap gap-2">
-              {POPULAR_DESTINATIONS.map((place) => (
-                <button
-                  key={place}
-                  type="button"
-                  onClick={() => {
-                    setDestinationQuery(place);
-                    runSearch(place, true);
-                  }}
-                  className="rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-emerald-600 hover:text-emerald-300 min-h-[32px]"
-                >
-                  {place.split(",")[0]}
-                </button>
-              ))}
-            </div>
-          </div>
+        <div className="relative z-20">
+          <PlaceSearchField
+            id="destination"
+            label="To"
+            hint="Type any place worldwide"
+            placeholder="Search destination city or address…"
+            value={destination}
+            onChange={setDestination}
+            onError={setError}
+            quickPicks={POPULAR_DESTINATIONS}
+            quickPicksLabel="Popular destinations"
+          />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -290,17 +183,8 @@ export default function TripsPage() {
             />
           </div>
         </div>
-        {origin && (
-          <p className="text-sm text-slate-400">
-            <MapPin className="inline h-4 w-4 mr-1" />
-            From: {origin.label}
-          </p>
-        )}
-        <Button
-          className="w-full"
-          onClick={planTrip}
-          disabled={loading || !origin || destinationQuery.trim().length < 2}
-        >
+
+        <Button className="w-full" onClick={planTrip} disabled={loading || !origin || !destination}>
           {loading ? "Planning route…" : "Plan trip"}
         </Button>
       </Card>
