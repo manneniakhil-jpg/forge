@@ -50,7 +50,7 @@ async function nominatimSearch(
     const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
       headers: {
         Accept: "application/json",
-        "User-Agent": "DriveEV/1.0 (drieEV.com)",
+        "User-Agent": "drieEv/1.0 (drieEv.com)",
       },
       signal: AbortSignal.timeout(8000),
     });
