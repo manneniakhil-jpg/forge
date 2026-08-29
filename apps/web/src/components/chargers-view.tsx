@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import dynamic from "next/dynamic";
+import { useEffect, useMemo, useState } from "react";
 import type { ChargingStation, ConnectorStandard, VehicleKind } from "@ev/domain";
 import { DirectionsButton } from "@/components/directions-button";
 import { FitsYourCarBadge, NoMatchBadge } from "@/components/fits-your-car-badge";
@@ -23,34 +22,12 @@ import { PlaceSearchField, type GeocodeHit } from "@/components/place-search-fie
 import { getReachabilityCache, stationsWithDistance } from "@/lib/reachability-client";
 import { resolveVehicleKind } from "@/lib/vehicle-kind";
 
-const ChargerMap = dynamic(
-  () => import("@/components/charger-map").then((m) => m.ChargerMap),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex h-[400px] items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-slate-400">
-        Loading map…
-      </div>
-    ),
-  }
-);
-
 interface ChargersViewProps {
   initialLat?: number;
   initialLon?: number;
-  vehicleKind?: VehicleKind;
-  vehicleLabel?: string | null;
-  /** When false, the Leaflet map is never mounted (e-bikes). */
-  showMap?: boolean;
 }
 
-export function ChargersView({
-  initialLat = 37.7749,
-  initialLon = -122.4194,
-  vehicleKind: vehicleKindProp = "car",
-  vehicleLabel: vehicleLabelProp = null,
-  showMap = true,
-}: ChargersViewProps) {
+export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: ChargersViewProps) {
   const [stations, setStations] = useState<Array<ChargingStation & { distanceKm: number; outsideRadius?: boolean }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,11 +48,9 @@ export function ChargersView({
   const [searchPlace, setSearchPlace] = useState<GeocodeHit | null>(null);
   const [sortBy, setSortBy] = useState<ChargerSortMode>("vehicle");
   const [vehicleConnectors, setVehicleConnectors] = useState<ConnectorStandard[]>([]);
-  const [vehicleKind, setVehicleKind] = useState<VehicleKind>(vehicleKindProp);
-  const [vehicleProfileReady, setVehicleProfileReady] = useState(true);
-  const [vehicleLabel, setVehicleLabel] = useState<string | null>(vehicleLabelProp);
+  const [vehicleKind, setVehicleKind] = useState<VehicleKind>("car");
+  const [vehicleLabel, setVehicleLabel] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<string[]>([]);
-  const [locating, setLocating] = useState(false);
 
   const sortedStations = useMemo(
     () =>
@@ -111,24 +86,6 @@ export function ChargersView({
       return;
     }
     void search(center.lat, center.lon);
-  };
-
-  const handleLocateMe = () => {
-    if (!navigator.geolocation) return;
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const point = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-        setUserLocation(point);
-        setCenter(point);
-        setSearchPlace({ lat: point.lat, lon: point.lon, label: "Current location" });
-        setSelected(null);
-        void search(point.lat, point.lon);
-        setLocating(false);
-      },
-      () => setLocating(false),
-      { enableHighAccuracy: true, timeout: 15000 }
-    );
   };
 
   const applyCachedResults = (lat: number, lon: number) => {
@@ -197,46 +154,47 @@ export function ChargersView({
   };
 
   useEffect(() => {
-    setVehicleKind(vehicleKindProp);
-    setVehicleLabel(vehicleLabelProp);
-    setVehicleProfileReady(true);
-  }, [vehicleKindProp, vehicleLabelProp]);
-
-  const loadVehicleProfile = useCallback(async () => {
     const token = localStorage.getItem("ev_session_token");
     if (!token) return;
-    try {
-      const data = await fetch("/api/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      }).then((r) => r.json());
 
-      if (data.activeVehicle) {
-        setVehicleKind(resolveVehicleKind(data.activeVehicle));
-        if (data.activeVehicle.connectorStandards) {
-          setVehicleConnectors(data.activeVehicle.connectorStandards);
+    fetch("/api/me", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.activeVehicle) {
+          setVehicleKind(resolveVehicleKind(data.activeVehicle));
+          if (data.activeVehicle.connectorStandards) {
+            setVehicleConnectors(data.activeVehicle.connectorStandards);
+          }
+          setVehicleLabel(`${data.activeVehicle.make} ${data.activeVehicle.model}`);
         }
-        setVehicleLabel(`${data.activeVehicle.make} ${data.activeVehicle.model}`);
-      } else {
-        setVehicleKind("car");
-        setVehicleConnectors([]);
-        setVehicleLabel(null);
-      }
-    } catch {
-      setVehicleKind("car");
-    }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
-    void loadVehicleProfile();
-  }, [loadVehicleProfile]);
-
-  useEffect(() => {
-    const onVehicleChange = () => {
-      void loadVehicleProfile();
+    const reloadProfile = () => {
+      const token = localStorage.getItem("ev_session_token");
+      if (!token) return;
+      fetch("/api/me", { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.activeVehicle) {
+            setVehicleKind(resolveVehicleKind(data.activeVehicle));
+            if (data.activeVehicle.connectorStandards) {
+              setVehicleConnectors(data.activeVehicle.connectorStandards);
+            }
+            setVehicleLabel(`${data.activeVehicle.make} ${data.activeVehicle.model}`);
+          } else {
+            setVehicleKind("car");
+            setVehicleConnectors([]);
+            setVehicleLabel(null);
+          }
+        })
+        .catch(() => {});
     };
-    window.addEventListener("ev-active-vehicle-changed", onVehicleChange);
-    return () => window.removeEventListener("ev-active-vehicle-changed", onVehicleChange);
-  }, [loadVehicleProfile]);
+    window.addEventListener("ev-active-vehicle-changed", reloadProfile);
+    return () => window.removeEventListener("ev-active-vehicle-changed", reloadProfile);
+  }, []);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -256,7 +214,6 @@ export function ChargersView({
   }, []);
 
   const isBike = vehicleKind === "bike";
-  const mapEnabled = showMap && !isBike;
 
   return (
     <div className="space-y-4">
@@ -267,7 +224,7 @@ export function ChargersView({
             <span className="block text-xs text-slate-500">Active: {vehicleLabel}{isBike ? " · e-bike" : ""}</span>
           )}
           {isBike
-            ? `Level 2 and outlet-friendly locations near ${locationSubtitle} — map hidden for e-bikes`
+            ? `Level 2 and outlet-friendly locations near ${locationSubtitle}`
             : sortBy === "vehicle" && vehicleConnectors.length > 0
               ? `Sorted for your ${vehicleLabel ?? "vehicle"} (${vehicleConnectors.join(", ")}) near ${locationSubtitle}`
               : sortBy === "fast_charge"
@@ -372,28 +329,10 @@ export function ChargersView({
         </p>
       )}
 
-      {!vehicleProfileReady && mapEnabled && (
-        <div className="flex h-24 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-sm text-slate-400">
-          Loading your vehicle profile…
-        </div>
-      )}
-
-      {vehicleProfileReady && !loading && mapEnabled && (
-        <ChargerMap
-          center={center}
-          userLocation={userLocation}
-          stations={sortedStations}
-          selected={selected}
-          onSelect={setSelected}
-          onLocateMe={handleLocateMe}
-          locating={locating}
-        />
-      )}
-
-      {vehicleProfileReady && !loading && isBike && (
+      {isBike && !loading && (
         <p className="rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-sm text-slate-400">
-          E-bikes usually charge at home or with a portable adapter. Use the list below for nearby
-          Type 2 outlets — switch to a car in Settings to see the station map.
+          E-bikes usually charge at home or with a portable adapter. Browse Type 2 outlets in the
+          list below.
         </p>
       )}
 
