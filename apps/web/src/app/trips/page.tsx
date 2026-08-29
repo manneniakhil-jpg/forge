@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { ChevronDown, ChevronUp, Route } from "lucide-react";
+import { Route } from "lucide-react";
 import { Button, Card, Input, Label } from "@/components/ui";
 import { TripNavigationPanel } from "@/components/trip-navigation-panel";
 import { PlaceSearchField, type GeocodeHit } from "@/components/place-search-field";
@@ -47,7 +47,6 @@ export default function TripsPage() {
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showOriginEditor, setShowOriginEditor] = useState(false);
   const [originLocating, setOriginLocating] = useState(true);
   const planRequestRef = useRef(0);
   const departureSocRef = useRef(departureSoc);
@@ -157,7 +156,6 @@ export default function TripsPage() {
 
   const handleDestinationChange = (hit: GeocodeHit | null) => {
     setDestination(hit);
-    setShowOriginEditor(false);
     setPlan(null);
   };
 
@@ -188,58 +186,27 @@ export default function TripsPage() {
         <PlaceSearchField
           id="destination"
           label="Where to?"
-          hint="Search your destination — we'll route from your current location"
+          hint="Search your destination"
           placeholder="City, address, or landmark…"
           value={destination}
           onChange={handleDestinationChange}
           onError={setError}
         />
 
-        {destination && (
-          <div className="rounded-xl border border-slate-700 bg-slate-950/50 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 space-y-1 text-sm">
-                <p className="text-slate-500">From</p>
-                <p className="font-medium text-slate-100">{originLabel(origin)}</p>
-                <p className="text-slate-500">To</p>
-                <p className="font-medium text-emerald-300">{destinationLabel(destination)}</p>
-              </div>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => setShowOriginEditor((open) => !open)}
-              >
-                {showOriginEditor ? (
-                  <>
-                    <ChevronUp className="h-4 w-4" />
-                    Hide
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="h-4 w-4" />
-                    Change start
-                  </>
-                )}
-              </Button>
-            </div>
-
-            {showOriginEditor && (
-              <div className="relative z-10 mt-4 border-t border-slate-800 pt-4">
-                <PlaceSearchField
-                  id="origin"
-                  label="Starting point"
-                  hint="Pick a different place to start from"
-                  placeholder="Search starting city or address…"
-                  value={origin}
-                  onChange={handleOriginChange}
-                  onError={setError}
-                  showLocateMe
-                />
-              </div>
-            )}
-          </div>
-        )}
+        <PlaceSearchField
+          id="origin"
+          label="From"
+          hint={
+            originLocating
+              ? "Detecting your location…"
+              : "Starting point — tap locate or type another place"
+          }
+          placeholder="Current location or search a start point…"
+          value={origin}
+          onChange={handleOriginChange}
+          onError={setError}
+          showLocateMe
+        />
 
         {destination && (
           <>
