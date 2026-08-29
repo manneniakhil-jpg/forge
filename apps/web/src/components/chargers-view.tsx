@@ -3,6 +3,14 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import type { ChargingStation } from "@ev/domain";
+import {
+  cacheChargerResults,
+  cacheFavorites,
+  getCachedChargerResults,
+  loadCache,
+} from "@ev/domain";
+import { StaleDataBanner } from "@/components/stale-data-banner";
+import { getReachabilityCache, stationsWithDistance } from "@/lib/reachability-client";
 
 const MapView = dynamic(() => import("./charger-map").then((m) => m.ChargerMap), {
   ssr: false,
@@ -30,10 +38,29 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
   });
   const [center, setCenter] = useState({ lat: initialLat, lon: initialLon });
   const [selected, setSelected] = useState<(ChargingStation & { distanceKm: number }) | null>(null);
+  const [fromCache, setFromCache] = useState(false);
+  const [cacheTimestamp, setCacheTimestamp] = useState<string | null>(null);
+  const [directoryUnavailable, setDirectoryUnavailable] = useState(false);
+
+  const applyCachedResults = (lat: number, lon: number) => {
+    const cached = getCachedChargerResults(getReachabilityCache());
+    if (!cached) return false;
+    const searchCenter = { lat, lon };
+    setStations(stationsWithDistance(cached.stations, searchCenter));
+    setCenter(searchCenter);
+    setFromCache(true);
+    setCacheTimestamp(cached.cachedAt);
+    setDirectoryUnavailable(false);
+    setFallbackUsed(false);
+    return true;
+  };
 
   const search = async (lat: number, lon: number) => {
     setLoading(true);
     setError(null);
+    setFromCache(false);
+    setCacheTimestamp(null);
+    setDirectoryUnavailable(false);
     try {
       const params = new URLSearchParams({
         lat: String(lat),
@@ -48,11 +75,26 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
       }).then((r) => r.json());
 
       if (data.code) throw new Error(data.message);
+
+      const cache = loadCache();
+      cacheChargerResults(cache, data.stations, { lat, lon });
+      if (Array.isArray(data.favorites)) {
+        cacheFavorites(cache, data.favorites);
+      }
+
       setStations(data.stations);
       setFallbackUsed(data.fallbackUsed);
       setCenter({ lat, lon });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Search failed");
+      const message = e instanceof Error ? e.message : "Search failed";
+      const hadCache = applyCachedResults(lat, lon);
+      if (hadCache) {
+        setError(null);
+      } else {
+        setStations([]);
+        setDirectoryUnavailable(true);
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -115,7 +157,18 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
         </p>
       )}
 
-      {error && (
+      {fromCache && (
+        <StaleDataBanner
+          message="Charger directory is unavailable. Showing stations from your last successful search."
+          cachedAt={cacheTimestamp}
+        />
+      )}
+
+      {directoryUnavailable && !fromCache && (
+        <StaleDataBanner message="Charger directory is unavailable and no recent stations are cached on this device." />
+      )}
+
+      {error && !fromCache && !directoryUnavailable && (
         <p className="rounded-xl bg-red-900/30 px-4 py-3 text-sm text-red-200" role="alert">
           {error}
         </p>
