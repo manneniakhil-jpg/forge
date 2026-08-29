@@ -197,10 +197,6 @@ export function PlaceSearchField({
       )}
 
       {searching && <p className="mt-2 text-xs text-slate-500">Searching…</p>}
-
-      {value && !showResults && (
-        <p className="mt-2 line-clamp-2 text-sm text-emerald-300/90">Selected: {value.label}</p>
-      )}
     </div>
   );
 }
