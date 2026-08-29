@@ -83,31 +83,21 @@
 
     <main class="page">
       <div class="brand-logo" aria-hidden="true">
-        <svg class="logo-ring" viewBox="0 0 100 100">
+        <svg class="logo-mark" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
           <circle cx="50" cy="50" r="44" class="ring-bg" />
-          <circle cx="50" cy="50" r="44" class="ring-fill ring-fill-nav" />
-          <circle cx="50" cy="50" r="44" class="ring-fill ring-fill-charge" />
-        </svg>
-        <svg class="logo-icons" viewBox="0 0 72 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <!-- Navigate -->
+          <circle cx="50" cy="50" r="44" class="ring-fill" />
+          <!-- Route arrow + lightning in one mark -->
           <path
-            d="M6 24 L14 8 L22 18 L30 6"
-            stroke="#00e5ff"
-            stroke-width="2.2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+            class="logo-symbol"
+            d="M50 22 L42 38 H48 L44 54 L50 46 L56 54 L52 38 H58 L50 22 Z"
+            fill="url(#markGradient)"
           />
-          <circle cx="14" cy="8" r="2.5" fill="#00e5ff" />
-          <circle cx="30" cy="6" r="2.5" fill="#00e5ff" />
-          <!-- Charge -->
-          <path
-            d="M46 4 L40 16 H48 L44 28 L56 14 H48 L52 4 Z"
-            fill="url(#logoBolt)"
-          />
+          <circle class="logo-node" cx="50" cy="18" r="3.5" fill="#00e5ff" />
           <defs>
-            <linearGradient id="logoBolt" x1="40" y1="4" x2="56" y2="28" gradientUnits="userSpaceOnUse">
-              <stop stop-color="#ffe566" />
-              <stop offset="1" stop-color="#39ff14" />
+            <linearGradient id="markGradient" x1="42" y1="22" x2="58" y2="54" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#00e5ff" />
+              <stop offset="0.55" stop-color="#39ff14" />
+              <stop offset="1" stop-color="#ffe566" />
             </linearGradient>
           </defs>
         </svg>
