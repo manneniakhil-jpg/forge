@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ChargingStation, ConnectorStandard } from "@ev/domain";
 import { DirectionsButton } from "@/components/directions-button";
+import { FitsYourCarBadge } from "@/components/fits-your-car-badge";
 import {
   sortChargerStations,
   stationMaxCompatiblePowerKw,
@@ -10,6 +11,7 @@ import {
   type ChargerSortMode,
   isStationCompatible,
 } from "@/lib/charger-sort";
+import { FitsYourCarBadge, NoMatchBadge } from "@/components/fits-your-car-badge";
 import {
   cacheChargerResults,
   cacheFavorites,
@@ -311,34 +313,24 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
                 onClick={() => setSelected(station)}
                 className="min-w-0 flex-1 text-left min-h-[44px]"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-semibold">{station.operatorName}</p>
-                    <p className="text-sm text-slate-400">
-                      {station.distanceKm.toFixed(1)} km · {station.networkId.replace(/_/g, " ")}
-                      {topPower > 0 && (
-                        <span className="text-slate-500"> · up to {topPower} kW</span>
-                      )}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    {vehicleConnectors.length > 0 && compatible && (
-                      <span className="rounded-full bg-emerald-900/40 px-2 py-0.5 text-xs text-emerald-300">
-                        Fits your car
-                      </span>
-                    )}
-                    {vehicleConnectors.length > 0 && !compatible && (
-                      <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-500">
-                        No match
-                      </span>
-                    )}
-                    {station.outsideRadius && (
-                      <span className="rounded-full bg-amber-900/50 px-2 py-0.5 text-xs text-amber-300">
-                        Outside radius
-                      </span>
-                    )}
-                  </div>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                  <p className="font-semibold">{station.operatorName}</p>
+                  {vehicleConnectors.length > 0 && compatible && (
+                    <FitsYourCarBadge station={station} vehicleConnectors={vehicleConnectors} />
+                  )}
+                  {vehicleConnectors.length > 0 && !compatible && <NoMatchBadge />}
+                  {station.outsideRadius && (
+                    <span className="inline-flex shrink-0 items-center rounded-full border border-amber-700/50 bg-amber-950/40 px-2.5 py-1 text-xs font-medium leading-none text-amber-200 whitespace-nowrap">
+                      Outside radius
+                    </span>
+                  )}
                 </div>
+                <p className="mt-1 text-sm text-slate-400">
+                  {station.distanceKm.toFixed(1)} km · {station.networkId.replace(/_/g, " ")}
+                  {topPower > 0 && (
+                    <span className="text-slate-500"> · up to {topPower} kW</span>
+                  )}
+                </p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {station.connectors.map((c) => {
                     const matchesVehicle = vehicleConnectors.includes(c.standard);
@@ -347,7 +339,7 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
                       key={c.id}
                       className={`rounded-full px-2 py-0.5 text-xs ${
                         matchesVehicle
-                          ? "border border-emerald-600/60 bg-emerald-900/50 text-emerald-200"
+                          ? "border border-emerald-500/60 bg-emerald-900/60 text-emerald-100"
                           : c.availability === "Available"
                             ? "bg-emerald-900/50 text-emerald-300"
                             : c.availability === "Occupied"
@@ -356,6 +348,9 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
                       }`}
                     >
                       {c.standard} {c.maxPowerKw}kW
+                      {matchesVehicle && vehicleConnectors.length > 0 && (
+                        <span className="ml-1 font-medium text-emerald-300">· yours</span>
+                      )}
                     </span>
                     );
                   })}
@@ -426,8 +421,11 @@ function StationDetail({
       <div className="max-h-[85vh] w-full overflow-y-auto rounded-t-3xl border border-slate-700 bg-slate-900 p-6 sm:max-w-lg sm:rounded-3xl">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <h2 className="text-xl font-bold">{station.operatorName}</h2>
-            <p className="text-slate-400">{station.distanceKm.toFixed(1)} km away</p>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+              <h2 className="text-xl font-bold">{station.operatorName}</h2>
+              <FitsYourCarBadge station={station} vehicleConnectors={vehicleConnectors} />
+            </div>
+            <p className="mt-1 text-slate-400">{station.distanceKm.toFixed(1)} km away</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <DirectionsButton
@@ -457,8 +455,8 @@ function StationDetail({
               <div className="flex items-center justify-between">
                 <span className="font-medium">
                   {c.standard} · {c.maxPowerKw} kW
-                  {matchesVehicle && (
-                    <span className="ml-2 text-xs font-normal text-emerald-400">Your connector</span>
+                  {matchesVehicle && vehicleConnectors.length > 0 && (
+                    <span className="ml-2 text-xs font-normal text-emerald-300">Fits your car</span>
                   )}
                 </span>
                 <span className="text-sm text-slate-400">{c.availability}</span>
