@@ -17,9 +17,19 @@ import {
   loadCache,
 } from "@ev/domain";
 import { StaleDataBanner } from "@/components/stale-data-banner";
-import { LocateMeButton } from "@/components/locate-me-button";
+import { PlaceSearchField, type GeocodeHit } from "@/components/place-search-field";
 import { getReachabilityCache, stationsWithDistance } from "@/lib/reachability-client";
-import { getCurrentLocation } from "@/lib/geolocation";
+
+const POPULAR_PLACES = [
+  "San Francisco, California",
+  "Los Angeles, California",
+  "San Diego, California",
+  "San Jose, California",
+  "Seattle, Washington",
+  "Portland, Oregon",
+  "Las Vegas, Nevada",
+  "Denver, Colorado",
+];
 
 interface ChargersViewProps {
   initialLat?: number;
@@ -44,7 +54,7 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
   const [cacheTimestamp, setCacheTimestamp] = useState<string | null>(null);
   const [directoryUnavailable, setDirectoryUnavailable] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
-  const [locating, setLocating] = useState(false);
+  const [searchPlace, setSearchPlace] = useState<GeocodeHit | null>(null);
   const [sortBy, setSortBy] = useState<ChargerSortMode>("vehicle");
   const [vehicleConnectors, setVehicleConnectors] = useState<ConnectorStandard[]>([]);
   const [vehicleLabel, setVehicleLabel] = useState<string | null>(null);
@@ -59,6 +69,32 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
       }),
     [stations, sortBy, vehicleConnectors, favorites]
   );
+
+  const locationSubtitle = searchPlace
+    ? searchPlace.label === "Current location"
+      ? "your location"
+      : searchPlace.label.split(",").slice(0, 2).join(",")
+    : "you";
+
+  const handlePlaceChange = (hit: GeocodeHit | null) => {
+    setSearchPlace(hit);
+    setSelected(null);
+    if (hit) {
+      setCenter({ lat: hit.lat, lon: hit.lon });
+      if (hit.label === "Current location") {
+        setUserLocation({ lat: hit.lat, lon: hit.lon });
+      }
+      void search(hit.lat, hit.lon);
+    }
+  };
+
+  const searchNearCenter = () => {
+    if (searchPlace) {
+      void search(searchPlace.lat, searchPlace.lon);
+      return;
+    }
+    void search(center.lat, center.lon);
+  };
 
   const applyCachedResults = (lat: number, lon: number) => {
     const cached = getCachedChargerResults(getReachabilityCache());
@@ -147,6 +183,7 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
           const point = { lat: pos.coords.latitude, lon: pos.coords.longitude };
           setUserLocation(point);
           setCenter(point);
+          setSearchPlace({ lat: point.lat, lon: point.lon, label: "Current location" });
           search(point.lat, point.lon);
         },
         () => search(initialLat, initialLon)
@@ -156,36 +193,35 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
     }
   }, []);
 
-  const locateMe = async () => {
-    setLocating(true);
-    setError(null);
-    setSelected(null);
-    try {
-      const point = await getCurrentLocation();
-      setUserLocation(point);
-      setCenter(point);
-      await search(point.lat, point.lon);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not get your location");
-    } finally {
-      setLocating(false);
-    }
-  };
-
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold">Find Chargers</h1>
         <p className="text-slate-400">
           {sortBy === "vehicle" && vehicleConnectors.length > 0
-            ? `Sorted for your ${vehicleLabel ?? "vehicle"} (${vehicleConnectors.join(", ")})`
+            ? `Sorted for your ${vehicleLabel ?? "vehicle"} (${vehicleConnectors.join(", ")}) near ${locationSubtitle}`
             : sortBy === "fast_charge"
-              ? "Sorted by fastest charging speed"
-              : "Stations near you"}
+              ? `Sorted by fastest charging speed near ${locationSubtitle}`
+              : `Stations near ${locationSubtitle}`}
           {dataSource === "google_places" && (
             <span className="text-slate-500"> · via Google Maps</span>
           )}
         </p>
+      </div>
+
+      <div className="rounded-2xl border border-slate-700 bg-slate-900 p-4">
+        <PlaceSearchField
+          id="charger-search-place"
+          label="Search near"
+          hint="Find chargers around a city, address, or landmark"
+          placeholder="City, address, or landmark…"
+          value={searchPlace}
+          onChange={handlePlaceChange}
+          onError={setError}
+          quickPicks={POPULAR_PLACES}
+          quickPicksLabel="Popular places"
+          showLocateMe
+        />
       </div>
 
       <div className="flex flex-wrap gap-3">
@@ -224,12 +260,11 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
           <option value="Type2">Type 2</option>
         </select>
         <button
-          onClick={() => search(center.lat, center.lon)}
+          onClick={searchNearCenter}
           className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-medium hover:bg-emerald-700 min-h-[44px]"
         >
           Search
         </button>
-        <LocateMeButton onClick={locateMe} loading={locating} />
       </div>
 
       {regionalDemoAdded && (
