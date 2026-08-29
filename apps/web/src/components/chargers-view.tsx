@@ -219,6 +219,8 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
     }
   }, []);
 
+  const isBike = vehicleKind === "bike";
+
   return (
     <div className="space-y-4">
       <div>
