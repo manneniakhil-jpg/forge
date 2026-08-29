@@ -6,13 +6,14 @@ import Link from "next/link";
 import { Car, Check, Plus } from "lucide-react";
 import { Button, Card, Input, Label } from "@/components/ui";
 import { apiFetch, getAuthToken } from "@/lib/utils";
-import type { ConnectorStandard } from "@ev/domain";
+import type { ConnectorStandard, VehicleKind } from "@ev/domain";
 
 type VehicleRow = {
   id: string;
   make: string;
   model: string;
   year: number;
+  vehicleKind: VehicleKind;
   batteryKwh: number;
   connectorStandards: ConnectorStandard[];
   efficiencyWhKm: number;
@@ -247,7 +248,8 @@ export default function SettingsPage() {
                       {vehicle.year} {vehicle.make} {vehicle.model}
                     </p>
                     <p className="text-xs text-slate-400">
-                      {vehicle.batteryKwh} kWh · {vehicle.connectorStandards.join(", ")}
+                      {vehicle.vehicleKind === "bike" ? "E-bike" : "Car"} · {vehicle.batteryKwh} kWh ·{" "}
+                      {vehicle.connectorStandards.join(", ")}
                     </p>
                   </div>
                   {isActive ? (

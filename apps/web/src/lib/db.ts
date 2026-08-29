@@ -21,6 +21,7 @@ export function getDb(): Database.Database {
   db.pragma("foreign_keys = ON");
 
   initSchema(db);
+  migrateSchema(db);
   seedDatabase(db);
   ensureH3Index();
 
@@ -65,6 +66,7 @@ function initSchema(database: Database.Database) {
       battery_kwh REAL NOT NULL,
       connector_standards TEXT NOT NULL,
       efficiency_wh_km REAL NOT NULL,
+      vehicle_kind TEXT NOT NULL DEFAULT 'car',
       created_at TEXT NOT NULL,
       deleted_at TEXT,
       FOREIGN KEY (owner_id) REFERENCES accounts(id)
@@ -152,4 +154,11 @@ function initSchema(database: Database.Database) {
 
     CREATE INDEX IF NOT EXISTS idx_h3_cell_stations_h3 ON h3_cell_stations(h3_index);
   `);
+}
+
+function migrateSchema(database: Database.Database) {
+  const vehicleCols = database.prepare("PRAGMA table_info(vehicles)").all() as Array<{ name: string }>;
+  if (!vehicleCols.some((c) => c.name === "vehicle_kind")) {
+    database.exec(`ALTER TABLE vehicles ADD COLUMN vehicle_kind TEXT NOT NULL DEFAULT 'car'`);
+  }
 }

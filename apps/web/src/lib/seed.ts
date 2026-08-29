@@ -1,6 +1,38 @@
 import type Database from "better-sqlite3";
-import type { ConnectorStandard } from "@ev/domain";
+import type { ConnectorStandard, VehicleKind } from "@ev/domain";
 import { cellForCoordinates } from "./h3-index";
+
+type CatalogEntry = {
+  kind: VehicleKind;
+  make: string;
+  model: string;
+  year: number;
+  batteryKwh: number;
+  connectorStandards: ConnectorStandard[];
+  efficiencyWhKm: number;
+};
+
+export const CAR_CATALOG: CatalogEntry[] = [
+  { kind: "car", make: "Tesla", model: "Model 3 Long Range", year: 2024, batteryKwh: 82, connectorStandards: ["NACS"], efficiencyWhKm: 145 },
+  { kind: "car", make: "Tesla", model: "Model Y", year: 2024, batteryKwh: 75, connectorStandards: ["NACS"], efficiencyWhKm: 155 },
+  { kind: "car", make: "Ford", model: "Mustang Mach-E", year: 2024, batteryKwh: 91, connectorStandards: ["CCS"], efficiencyWhKm: 180 },
+  { kind: "car", make: "Chevrolet", model: "Bolt EUV", year: 2023, batteryKwh: 65, connectorStandards: ["CCS"], efficiencyWhKm: 160 },
+  { kind: "car", make: "Hyundai", model: "Ioniq 5", year: 2024, batteryKwh: 77, connectorStandards: ["CCS"], efficiencyWhKm: 170 },
+  { kind: "car", make: "Rivian", model: "R1T", year: 2024, batteryKwh: 135, connectorStandards: ["CCS"], efficiencyWhKm: 220 },
+  { kind: "car", make: "BMW", model: "i4", year: 2024, batteryKwh: 81, connectorStandards: ["CCS"], efficiencyWhKm: 165 },
+  { kind: "car", make: "Nissan", model: "Leaf", year: 2023, batteryKwh: 62, connectorStandards: ["CHAdeMO", "Type2"], efficiencyWhKm: 175 },
+];
+
+export const BIKE_CATALOG: CatalogEntry[] = [
+  { kind: "bike", make: "Rad Power", model: "RadRunner 3 Plus", year: 2024, batteryKwh: 0.75, connectorStandards: ["Type2"], efficiencyWhKm: 12 },
+  { kind: "bike", make: "Trek", model: "Allant+ 7", year: 2024, batteryKwh: 0.625, connectorStandards: ["Type2"], efficiencyWhKm: 10 },
+  { kind: "bike", make: "Specialized", model: "Turbo Vado 5", year: 2024, batteryKwh: 0.71, connectorStandards: ["Type2"], efficiencyWhKm: 11 },
+  { kind: "bike", make: "VanMoof", model: "S5", year: 2024, batteryKwh: 0.504, connectorStandards: ["Type2"], efficiencyWhKm: 9 },
+  { kind: "bike", make: "Super73", model: "ZX", year: 2024, batteryKwh: 0.96, connectorStandards: ["Type2"], efficiencyWhKm: 15 },
+  { kind: "bike", make: "Lectric", model: "XP 3.0", year: 2024, batteryKwh: 0.672, connectorStandards: ["Type2"], efficiencyWhKm: 13 },
+];
+
+export const VEHICLE_CATALOG: CatalogEntry[] = [...CAR_CATALOG, ...BIKE_CATALOG];
 
 type SeedStation = {
   name: string;
@@ -9,24 +41,6 @@ type SeedStation = {
   network: string;
   connectors: Array<{ standard: ConnectorStandard; power: number; price: number }>;
 };
-
-export const VEHICLE_CATALOG: Array<{
-  make: string;
-  model: string;
-  year: number;
-  batteryKwh: number;
-  connectorStandards: ConnectorStandard[];
-  efficiencyWhKm: number;
-}> = [
-  { make: "Tesla", model: "Model 3 Long Range", year: 2024, batteryKwh: 82, connectorStandards: ["NACS"], efficiencyWhKm: 145 },
-  { make: "Tesla", model: "Model Y", year: 2024, batteryKwh: 75, connectorStandards: ["NACS"], efficiencyWhKm: 155 },
-  { make: "Ford", model: "Mustang Mach-E", year: 2024, batteryKwh: 91, connectorStandards: ["CCS"], efficiencyWhKm: 180 },
-  { make: "Chevrolet", model: "Bolt EUV", year: 2023, batteryKwh: 65, connectorStandards: ["CCS"], efficiencyWhKm: 160 },
-  { make: "Hyundai", model: "Ioniq 5", year: 2024, batteryKwh: 77, connectorStandards: ["CCS"], efficiencyWhKm: 170 },
-  { make: "Rivian", model: "R1T", year: 2024, batteryKwh: 135, connectorStandards: ["CCS"], efficiencyWhKm: 220 },
-  { make: "BMW", model: "i4", year: 2024, batteryKwh: 81, connectorStandards: ["CCS"], efficiencyWhKm: 165 },
-  { make: "Nissan", model: "Leaf", year: 2023, batteryKwh: 62, connectorStandards: ["CHAdeMO", "Type2"], efficiencyWhKm: 175 },
-];
 
 const SF_CHARGERS: SeedStation[] = [
   { name: "Electrify America", lat: 37.7849, lon: -122.4094, network: "electrify_america", connectors: [{ standard: "CCS", power: 350, price: 0.48 }, { standard: "NACS", power: 250, price: 0.48 }] },

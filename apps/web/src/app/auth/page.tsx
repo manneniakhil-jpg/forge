@@ -2,9 +2,10 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Battery, Mail, Lock } from "lucide-react";
+import { Battery, Bike, Car, Mail, Lock } from "lucide-react";
 import { Button, Input, Label, Card } from "@/components/ui";
 import { apiFetch, setAuthToken, getAuthToken } from "@/lib/utils";
+import type { VehicleKind } from "@ev/domain";
 
 function AuthForm() {
   const router = useRouter();
@@ -18,6 +19,7 @@ function AuthForm() {
   const [step, setStep] = useState<"account" | "vehicle">("account");
   const [catalog, setCatalog] = useState<Array<Record<string, unknown>>>([]);
   const [catalogLoading, setCatalogLoading] = useState(true);
+  const [vehicleKind, setVehicleKind] = useState<VehicleKind>("car");
   const [vehicleForm, setVehicleForm] = useState({
     make: "Tesla",
     model: "Model 3 Long Range",
@@ -33,26 +35,21 @@ function AuthForm() {
   }, [router, setupMode]);
 
   useEffect(() => {
+    if (step !== "vehicle") return;
     let cancelled = false;
     setCatalogLoading(true);
-    fetch("/api/catalog")
+    fetch(`/api/catalog?kind=${vehicleKind}`)
       .then((r) => r.json())
       .then((d) => {
         if (cancelled) return;
         const items = (d.catalog ?? []) as Array<Record<string, unknown>>;
         setCatalog(items);
         if (items.length > 0) {
-          setVehicleForm((prev) => {
-            const match = items.find(
-              (v) => v.make === prev.make && v.model === prev.model && v.year === prev.year
-            );
-            if (match) return prev;
-            const first = items[0]!;
-            return {
-              make: first.make as string,
-              model: first.model as string,
-              year: first.year as number,
-            };
+          const first = items[0]!;
+          setVehicleForm({
+            make: first.make as string,
+            model: first.model as string,
+            year: first.year as number,
           });
         }
       })
@@ -65,7 +62,7 @@ function AuthForm() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [step, vehicleKind]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,7 +99,7 @@ function AuthForm() {
     try {
       await apiFetch("/api/vehicles", {
         method: "POST",
-        body: JSON.stringify(vehicleForm),
+        body: JSON.stringify({ ...vehicleForm, vehicleKind }),
       });
       router.replace("/");
     } catch (e) {
@@ -198,9 +195,36 @@ function AuthForm() {
             <h2 className="text-xl font-bold">Add your vehicle</h2>
             <p className="text-sm text-slate-400">
               {setupMode && getAuthToken()
-                ? "Pick your EV from our catalog"
-                : "Step 2 of 2 — pick your EV from our catalog"}
+                ? "Choose car or bike, then pick from our catalog"
+                : "Step 2 of 2 — choose car or bike, then pick from our catalog"}
             </p>
+
+            <div>
+              <Label>Vehicle type</Label>
+              <div className="mt-1.5 flex rounded-xl bg-slate-800 p-1">
+                <button
+                  type="button"
+                  onClick={() => setVehicleKind("car")}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium min-h-[44px] ${
+                    vehicleKind === "car" ? "bg-slate-900 text-white" : "text-slate-400"
+                  }`}
+                >
+                  <Car className="h-4 w-4" />
+                  Car
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVehicleKind("bike")}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium min-h-[44px] ${
+                    vehicleKind === "bike" ? "bg-slate-900 text-white" : "text-slate-400"
+                  }`}
+                >
+                  <Bike className="h-4 w-4" />
+                  Bike
+                </button>
+              </div>
+            </div>
+
             {catalogLoading ? (
               <p className="text-sm text-slate-400">Loading vehicle catalog…</p>
             ) : makes.length === 0 ? (

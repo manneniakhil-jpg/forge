@@ -1,4 +1,4 @@
-import type { ConnectorStandard, DistanceUnit } from "./types";
+import type { ConnectorStandard, DistanceUnit, VehicleKind } from "./types";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -23,14 +23,32 @@ export function validatePassword(password: string): { valid: boolean; code?: str
   return { valid: true };
 }
 
-export function validateBatteryCapacity(kwh: number): { valid: boolean; code?: string } {
+export function validateBatteryCapacity(
+  kwh: number,
+  kind: VehicleKind = "car"
+): { valid: boolean; code?: string } {
+  if (kind === "bike") {
+    if (kwh < 0.3 || kwh > 5) {
+      return { valid: false, code: "BATTERY_CAPACITY_OUT_OF_RANGE" };
+    }
+    return { valid: true };
+  }
   if (kwh < 5 || kwh > 250) {
     return { valid: false, code: "BATTERY_CAPACITY_OUT_OF_RANGE" };
   }
   return { valid: true };
 }
 
-export function validateEfficiency(whKm: number): { valid: boolean; field?: string } {
+export function validateEfficiency(
+  whKm: number,
+  kind: VehicleKind = "car"
+): { valid: boolean; field?: string } {
+  if (kind === "bike") {
+    if (whKm < 5 || whKm > 80) {
+      return { valid: false, field: "efficiencyWhKm" };
+    }
+    return { valid: true };
+  }
   if (whKm < 80 || whKm > 500) {
     return { valid: false, field: "efficiencyWhKm" };
   }

@@ -6,11 +6,16 @@ import {
   validateEfficiency,
   computeRangeKm,
   type ConnectorStandard,
+  type VehicleKind,
 } from "@ev/domain";
 import { validateSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { VEHICLE_CATALOG } from "@/lib/seed";
 import { apiError, getAuthHeader, jsonOk } from "@/lib/api-helpers";
+
+function parseKind(value: unknown): VehicleKind {
+  return value === "bike" ? "bike" : "car";
+}
 
 export async function GET(request: NextRequest) {
   const auth = validateSession(getAuthHeader(request));
@@ -26,6 +31,7 @@ export async function GET(request: NextRequest) {
       make: v.make,
       model: v.model,
       year: v.year,
+      vehicleKind: (v.vehicle_kind as VehicleKind) ?? "car",
       batteryKwh: v.battery_kwh,
       connectorStandards: JSON.parse(v.connector_standards as string),
       efficiencyWhKm: v.efficiency_wh_km,
@@ -39,6 +45,7 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json();
   const db = getDb();
+  const vehicleKind = parseKind(body.vehicleKind);
 
   const count = db
     .prepare("SELECT COUNT(*) as c FROM vehicles WHERE owner_id = ? AND deleted_at IS NULL")
@@ -49,6 +56,7 @@ export async function POST(request: NextRequest) {
 
   const catalogEntry = VEHICLE_CATALOG.find(
     (v) =>
+      v.kind === vehicleKind &&
       v.make.toLowerCase() === (make ?? "").toLowerCase() &&
       v.model.toLowerCase() === (model ?? "").toLowerCase() &&
       v.year === year
@@ -61,9 +69,15 @@ export async function POST(request: NextRequest) {
   }
 
   const fields: Record<string, string> = {};
-  if (!validateBatteryCapacity(batteryKwh).valid) fields.batteryKwh = "BATTERY_CAPACITY_OUT_OF_RANGE";
-  if (!validateConnectors(connectorStandards ?? []).valid) fields.connectorStandards = "Invalid connector count";
-  if (!validateEfficiency(efficiencyWhKm).valid) fields.efficiencyWhKm = "Out of range 80-500";
+  if (!validateBatteryCapacity(batteryKwh, vehicleKind).valid) {
+    fields.batteryKwh = "BATTERY_CAPACITY_OUT_OF_RANGE";
+  }
+  if (!validateConnectors(connectorStandards ?? []).valid) {
+    fields.connectorStandards = "Invalid connector count";
+  }
+  if (!validateEfficiency(efficiencyWhKm, vehicleKind).valid) {
+    fields.efficiencyWhKm = "Out of range for vehicle type";
+  }
 
   if (Object.keys(fields).length > 0) {
     return apiError("VALIDATION_ERROR", "Invalid vehicle profile", 400, fields);
@@ -73,8 +87,8 @@ export async function POST(request: NextRequest) {
   const now = new Date().toISOString();
 
   db.prepare(
-    `INSERT INTO vehicles (id, owner_id, make, model, year, battery_kwh, connector_standards, efficiency_wh_km, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO vehicles (id, owner_id, make, model, year, battery_kwh, connector_standards, efficiency_wh_km, vehicle_kind, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     vehicleId,
     auth.ownerId,
@@ -84,6 +98,7 @@ export async function POST(request: NextRequest) {
     batteryKwh,
     JSON.stringify(connectorStandards),
     efficiencyWhKm,
+    vehicleKind,
     now
   );
 
@@ -105,6 +120,7 @@ export async function POST(request: NextRequest) {
         make,
         model,
         year,
+        vehicleKind,
         batteryKwh,
         connectorStandards,
         efficiencyWhKm,

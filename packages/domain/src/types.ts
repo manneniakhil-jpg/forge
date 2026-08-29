@@ -1,4 +1,5 @@
 export type ConnectorStandard = "CCS" | "NACS" | "CHAdeMO" | "Type2";
+export type VehicleKind = "car" | "bike";
 export type AvailabilityStatus = "Available" | "Occupied" | "Out_Of_Service" | "Unknown";
 export type DistanceUnit = "km" | "mi";
 export type ChargingStatus = "charging" | "idle";
@@ -29,6 +30,7 @@ export interface VehicleProfile {
   make: string;
   model: string;
   year: number;
+  vehicleKind: VehicleKind;
   batteryKwh: number;
   connectorStandards: ConnectorStandard[];
   efficiencyWhKm: number;

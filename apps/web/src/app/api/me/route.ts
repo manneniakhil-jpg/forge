@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
         make: v.make,
         model: v.model,
         year: v.year,
+        vehicleKind: (v.vehicle_kind as string) ?? "car",
         batteryKwh: v.battery_kwh,
         connectorStandards: JSON.parse(v.connector_standards as string),
         efficiencyWhKm: v.efficiency_wh_km,
