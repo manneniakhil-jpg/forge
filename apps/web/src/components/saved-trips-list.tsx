@@ -54,7 +54,7 @@ export function SavedTripsList({ onSelect }: { onSelect: (tripId: string) => voi
   }, []);
 
   if (loading) {
-    return <p className="text-sm text-slate-400">Loading saved trips…</p>;
+    return <p className="text-sm text-slate-400">Loading recent trips…</p>;
   }
 
   if (trips.length === 0) return null;
