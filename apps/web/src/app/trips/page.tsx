@@ -43,6 +43,8 @@ export default function TripsPage() {
   const [origin, setOrigin] = useState<GeocodeHit | null>(null);
   const [destination, setDestination] = useState<GeocodeHit | null>(null);
   const [plan, setPlan] = useState<TripPlan | null>(null);
+  const [planOptions, setPlanOptions] = useState<TripPlan[]>([]);
+  const [selectedPlanIndex, setSelectedPlanIndex] = useState(0);
   const [navUserLocation, setNavUserLocation] = useState<{ lat: number; lon: number } | null>(
     null
   );
@@ -117,20 +119,26 @@ export default function TripsPage() {
       setLoading(true);
       setError(null);
       setPlan(null);
+      setPlanOptions([]);
+      setSelectedPlanIndex(0);
       setNavUserLocation(from.label === "Current location" ? { lat: from.lat, lon: from.lon } : null);
 
       try {
-        const data = await apiFetch<{ plan: TripPlan }>("/api/trips", {
+        const data = await apiFetch<{ plan: TripPlan; alternatives?: TripPlan[] }>("/api/trips", {
           method: "POST",
           body: JSON.stringify({
             origin: { lat: from.lat, lon: from.lon, label: from.label },
             destination: { lat: to.lat, lon: to.lon, label: to.label },
             departureSocPct: parseInt(departureSocRef.current, 10),
             reserveSocPct: parseInt(reserveSocRef.current, 10),
+            alternatives: 3,
           }),
         });
         if (requestId !== planRequestRef.current) return;
-        setPlan(data.plan);
+        const options = data.alternatives?.length ? data.alternatives : [data.plan];
+        setPlanOptions(options);
+        setSelectedPlanIndex(0);
+        setPlan(options[0]);
       } catch (e) {
         if (requestId !== planRequestRef.current) return;
         const err = e as { message?: string; code?: string; fields?: Record<string, string> };
@@ -163,6 +171,7 @@ export default function TripsPage() {
   const handleDestinationChange = (hit: GeocodeHit | null) => {
     setDestination(hit);
     setPlan(null);
+    setPlanOptions([]);
   };
 
   const handleOriginChange = (hit: GeocodeHit | null) => {
@@ -265,6 +274,37 @@ export default function TripsPage() {
         <p className="text-center text-slate-400">Planning your route and charge stops…</p>
       )}
 
+      {plan && planOptions.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          {planOptions.map((option, index) => {
+            const totalMin = option.totalDrivingMin + option.totalChargingMin;
+            const isSelected = index === selectedPlanIndex;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => {
+                  setSelectedPlanIndex(index);
+                  setPlan(option);
+                  setSwapStopIndex(null);
+                }}
+                className={`rounded-xl border px-4 py-2.5 text-left text-sm transition min-h-[44px] ${
+                  isSelected
+                    ? "border-emerald-500 bg-emerald-950/40 text-emerald-100"
+                    : "border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-500"
+                }`}
+              >
+                <span className="font-medium">Route {index + 1}</span>
+                <span className="mt-0.5 block text-xs opacity-80">
+                  {totalMin} min · {option.chargeStops.length} stop
+                  {option.chargeStops.length === 1 ? "" : "s"}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {plan && (
         <Card className="space-y-4">
           <div className="flex items-center gap-2">
@@ -353,7 +393,12 @@ export default function TripsPage() {
           stopIndex={swapStopIndex}
           stopName={plan.chargeStops[swapStopIndex]?.stationName ?? "Stop"}
           departureSocPct={parseInt(departureSoc, 10)}
-          onSelect={setPlan}
+          onSelect={(updated) => {
+            setPlan(updated);
+            setPlanOptions((prev) =>
+              prev.map((p, i) => (i === selectedPlanIndex ? updated : p))
+            );
+          }}
           onClose={() => setSwapStopIndex(null)}
         />
       )}

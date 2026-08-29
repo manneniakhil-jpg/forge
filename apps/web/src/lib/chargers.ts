@@ -199,7 +199,9 @@ export function queryCorridor(
   for (const pt of points) {
     for (const cell of coveringCellIndexes(pt.lat, pt.lon, corridorKm)) {
       cellSet.add(cell);
+      if (cellSet.size >= 500) break;
     }
+    if (cellSet.size >= 500) break;
   }
 
   const stationIds = getStationIdsInCells([...cellSet]);
@@ -379,6 +381,13 @@ export async function listCorridorAlternatives(
       0
     ),
   }));
+}
+
+export function getFeedTimestamps(): Record<string, string> {
+  const rows = getDb()
+    .prepare("SELECT network_id, last_success_at FROM feed_health")
+    .all() as Array<{ network_id: string; last_success_at: string }>;
+  return Object.fromEntries(rows.map((r) => [r.network_id, r.last_success_at]));
 }
 
 export { loadStation };

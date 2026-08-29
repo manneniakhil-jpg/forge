@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { validateSearchParams, type ConnectorStandard } from "@ev/domain";
 import { validateSession } from "@/lib/auth";
-import { searchChargers, getFavorites } from "@/lib/chargers";
+import { searchChargers, getFavorites, getFeedTimestamps } from "@/lib/chargers";
 import { apiError, getAuthHeader, jsonOk } from "@/lib/api-helpers";
 
 export async function GET(request: NextRequest) {
@@ -53,6 +53,6 @@ export async function GET(request: NextRequest) {
     regionalDemoAdded,
     dataSource,
     favorites,
-    feedTimestamps: {},
+    feedTimestamps: getFeedTimestamps(),
   });
 }

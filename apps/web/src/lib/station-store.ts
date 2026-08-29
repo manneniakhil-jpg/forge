@@ -77,8 +77,22 @@ export function rebuildH3Index(): void {
   tx();
 }
 
+function ensureH3Schema(db: Database.Database): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS h3_cell_stations (
+      h3_index TEXT NOT NULL,
+      station_id TEXT NOT NULL,
+      indexed_at TEXT NOT NULL,
+      PRIMARY KEY (h3_index, station_id),
+      FOREIGN KEY (station_id) REFERENCES charging_stations(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_h3_cell_stations_h3 ON h3_cell_stations(h3_index);
+  `);
+}
+
 export function ensureH3Index(): void {
   const db = getDb();
+  ensureH3Schema(db);
   const indexed = db.prepare("SELECT COUNT(*) as c FROM h3_cell_stations").get() as { c: number };
   const stations = db.prepare("SELECT COUNT(*) as c FROM charging_stations").get() as { c: number };
   if (stations.c > 0 && indexed.c === 0) {
@@ -139,11 +153,23 @@ export function upsertStation(station: ChargingStation): void {
 export function getStationIdsInCells(cellIndexes: string[]): string[] {
   if (cellIndexes.length === 0) return [];
   const db = getDb();
-  const placeholders = cellIndexes.map(() => "?").join(",");
-  const rows = db
-    .prepare(`SELECT DISTINCT station_id FROM h3_cell_stations WHERE h3_index IN (${placeholders})`)
-    .all(...cellIndexes) as Array<{ station_id: string }>;
-  return rows.map((r) => r.station_id);
+  const seen = new Set<string>();
+  const batchSize = 400;
+
+  for (let offset = 0; offset < cellIndexes.length; offset += batchSize) {
+    const batch = cellIndexes.slice(offset, offset + batchSize);
+    const placeholders = batch.map(() => "?").join(",");
+    const rows = db
+      .prepare(
+        `SELECT DISTINCT station_id FROM h3_cell_stations WHERE h3_index IN (${placeholders})`
+      )
+      .all(...batch) as Array<{ station_id: string }>;
+    for (const row of rows) {
+      seen.add(row.station_id);
+    }
+  }
+
+  return [...seen];
 }
 
 export function searchStationsInRadius(

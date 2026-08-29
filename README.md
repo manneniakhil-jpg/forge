@@ -8,9 +8,10 @@ Built from the EV Companion requirements and design specification — see [`docs
 
 - **Account & vehicle setup** — Register, sign in, and add your EV from a supported catalog
 - **Home dashboard** — State of charge, estimated range, plugged-in status, and stale-data indicators
-- **Charger discovery** — Interactive map with filtering by connector type, radius, and power; favorites support
+- **Charger discovery** — Search nearby stations (H3-indexed cache + Google Places), sort by your vehicle, speed, or distance; swap charge stops on trips
+- **Navigate** — Destination-first routing with automatic charge stops, alternative routes, and per-stop station picker
 - **Charging sessions** — Remote start/stop at supported stations with live energy and cost tracking
-- **Trip planning** — Routes with automatic charge stop insertion based on your vehicle and reserve charge
+- **Trip planning** — Routes with automatic charge stop insertion; up to 3 alternative routes; change any stop
 - **Cost history** — Session list with energy and cost summaries
 
 ## Architecture
@@ -59,7 +60,9 @@ Charger search uses the **Google Places API (New)** when an API key is set. With
 GOOGLE_MAPS_API_KEY=your_key_here
 ```
 
-Restart the dev server after adding the key. The charger map subtitle will show **via Google Maps** when live data is used.
+Restart the dev server after adding the key. The charger list subtitle will show **via Google Maps** when live data is used.
+
+Place search (Navigate and Find Chargers) uses **Google Places Autocomplete** with the same key when configured, biased toward your location. Falls back to OpenStreetMap Nominatim otherwise.
 
 Billing applies per Google’s [Places pricing](https://developers.google.com/maps/billing-and-pricing). Results are cached for 15 minutes per search area to limit cost.
 

@@ -328,7 +328,60 @@ async function replanWithPrefixStops(
 export async function planTrip(
   input: TripInput
 ): Promise<TripPlan | { error: string; details?: Record<string, unknown> }> {
-  return replanWithPrefixStops(input, []);
+  return planTripExcluding(input, []);
+}
+
+export async function planTripExcluding(
+  input: TripInput,
+  excludeStationIds: Iterable<string>
+): Promise<TripPlan | { error: string; details?: Record<string, unknown> }> {
+  const state: PlannerState = {
+    chargeStops: [],
+    routeSegments: [],
+    visitedStationIds: new Set(excludeStationIds),
+    currentPos: input.origin,
+    currentSoc: input.departureSocPct,
+    totalDistanceKm: 0,
+    totalDrivingMin: 0,
+  };
+  return continuePlanning(input, state, 10);
+}
+
+function planStopSignature(plan: TripPlan): string {
+  return plan.chargeStops.map((s) => s.stationId).join("|") || "direct";
+}
+
+export async function planTripAlternatives(
+  input: TripInput,
+  maxAlternatives = 3
+): Promise<TripPlan[]> {
+  const cap = Math.min(3, Math.max(1, maxAlternatives));
+  const plans: TripPlan[] = [];
+  const seen = new Set<string>();
+  const excludeAll = new Set<string>();
+
+  for (let i = 0; i < cap; i++) {
+    const result = await planTripExcluding(input, excludeAll);
+    if ("error" in result) break;
+
+    const signature = planStopSignature(result);
+    if (seen.has(signature)) break;
+    seen.add(signature);
+    plans.push(result);
+
+    for (const stop of result.chargeStops) {
+      excludeAll.add(stop.stationId);
+    }
+
+    if (result.chargeStops.length === 0) break;
+  }
+
+  return plans.sort((a, b) => {
+    const durationA = a.totalDrivingMin + a.totalChargingMin;
+    const durationB = b.totalDrivingMin + b.totalChargingMin;
+    if (durationA !== durationB) return durationA - durationB;
+    return a.totalDistanceKm - b.totalDistanceKm;
+  });
 }
 
 function positionBeforeStop(
