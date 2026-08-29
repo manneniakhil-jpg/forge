@@ -3,10 +3,17 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Zap, MapPin, Route, RefreshCw } from "lucide-react";
+import { Zap, RefreshCw } from "lucide-react";
 import { Button, Card, Badge } from "@/components/ui";
 import { StaleDataBanner } from "@/components/stale-data-banner";
+import { HomeDashboard } from "@/components/home-dashboard";
 import { apiFetch, getAuthToken } from "@/lib/utils";
+import { getCurrentLocation } from "@/lib/geolocation";
+import {
+  formatNearbyCharger,
+  weeklySummary,
+  type NearbyFastCharger,
+} from "@/lib/home-insights";
 import {
   formatAgeMinutes,
   convertDistance,
@@ -14,18 +21,20 @@ import {
   mergeVehicleState,
   mergeActiveSession,
   type CachedActiveSession,
+  type ConnectorStandard,
   type VehicleState,
 } from "@ev/domain";
 
 interface HomeData {
-  account: { distanceUnit: "km" | "mi"; email: string };
+  account: { distanceUnit: "km" | "mi"; email: string; reserveSoc: number };
   activeVehicle: {
     id: string;
     make: string;
     model: string;
     year: number;
     batteryKwh: number;
-    connectorStandards: string[];
+    connectorStandards: ConnectorStandard[];
+    efficiencyWhKm: number;
   } | null;
 }
 
@@ -49,6 +58,9 @@ export default function HomePage() {
   const [sessionStale, setSessionStale] = useState(false);
   const [manualSoc, setManualSoc] = useState("");
   const [showManual, setShowManual] = useState(false);
+  const [weekly, setWeekly] = useState({ sessionCount: 0, energyKwh: 0, cost: 0 });
+  const [nearbyFast, setNearbyFast] = useState<NearbyFastCharger | null>(null);
+  const [nearbyLoading, setNearbyLoading] = useState(false);
 
   const loadVehicleState = (vehicleId: string, failed: boolean, incoming: VehicleState | null) => {
     const cache = loadCache();
@@ -110,6 +122,45 @@ export default function HomePage() {
         loadActiveSession(false, incoming);
       } catch {
         loadActiveSession(true, null);
+      }
+
+      try {
+        const history = await apiFetch<{
+          sessions: Array<{ startTs: string; energyKwh: number; cost: number | null }>;
+        }>("/api/history");
+        setWeekly(weeklySummary(history.sessions));
+      } catch {
+        setWeekly({ sessionCount: 0, energyKwh: 0, cost: 0 });
+      }
+
+      if (me.activeVehicle) {
+        setNearbyLoading(true);
+        try {
+          const point = await getCurrentLocation();
+          const chargers = await apiFetch<{
+            stations: Array<{
+              operatorName: string;
+              distanceKm: number;
+              connectors: Array<{
+                maxPowerKw: number;
+                availability: string;
+                standard: ConnectorStandard;
+              }>;
+            }>;
+          }>(
+            `/api/chargers?lat=${point.lat}&lon=${point.lon}&radiusKm=25&minPowerKw=100`
+          );
+          const best = chargers.stations
+            .map((s) =>
+              formatNearbyCharger(s, me.activeVehicle!.connectorStandards, me.account.distanceUnit)
+            )
+            .find((s): s is NearbyFastCharger => s !== null);
+          setNearbyFast(best ?? null);
+        } catch {
+          setNearbyFast(null);
+        } finally {
+          setNearbyLoading(false);
+        }
       }
     } catch {
       router.replace("/auth");
@@ -348,30 +399,17 @@ export default function HomePage() {
         </Card>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Link href="/chargers" className="block">
-          <Card className="flex items-center gap-4 transition hover:border-emerald-600/40 min-h-[72px]">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-600/20 text-emerald-400">
-              <MapPin className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="font-semibold">Find chargers</p>
-              <p className="text-sm text-slate-400">Near you, filtered for your vehicle</p>
-            </div>
-          </Card>
-        </Link>
-        <Link href="/trips" className="block">
-          <Card className="flex items-center gap-4 transition hover:border-emerald-600/40 min-h-[72px]">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600/20 text-blue-400">
-              <Route className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="font-semibold">Navigate</p>
-              <p className="text-sm text-slate-400">Route with charge stops and directions</p>
-            </div>
-          </Card>
-        </Link>
-      </div>
+      <HomeDashboard
+        socPct={state?.socPct}
+        batteryKwh={data.activeVehicle.batteryKwh}
+        efficiencyWhKm={data.activeVehicle.efficiencyWhKm}
+        reserveSocPct={data.account.reserveSoc ?? 10}
+        distanceUnit={unit}
+        connectorStandards={data.activeVehicle.connectorStandards}
+        weekly={weekly}
+        nearbyFast={nearbyFast}
+        nearbyLoading={nearbyLoading}
+      />
     </div>
   );
 }
