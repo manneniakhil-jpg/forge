@@ -17,6 +17,7 @@ function AuthForm() {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<"account" | "vehicle">("account");
   const [catalog, setCatalog] = useState<Array<Record<string, unknown>>>([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
   const [vehicleForm, setVehicleForm] = useState({
     make: "Tesla",
     model: "Model 3 Long Range",
@@ -26,13 +27,45 @@ function AuthForm() {
   useEffect(() => {
     if (getAuthToken() && setupMode) {
       setStep("vehicle");
-      return;
+    } else if (getAuthToken() && !setupMode) {
+      router.replace("/");
     }
-    if (getAuthToken() && !setupMode) router.replace("/");
+  }, [router, setupMode]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setCatalogLoading(true);
     fetch("/api/catalog")
       .then((r) => r.json())
-      .then((d) => setCatalog(d.catalog ?? []));
-  }, [router, setupMode]);
+      .then((d) => {
+        if (cancelled) return;
+        const items = (d.catalog ?? []) as Array<Record<string, unknown>>;
+        setCatalog(items);
+        if (items.length > 0) {
+          setVehicleForm((prev) => {
+            const match = items.find(
+              (v) => v.make === prev.make && v.model === prev.model && v.year === prev.year
+            );
+            if (match) return prev;
+            const first = items[0]!;
+            return {
+              make: first.make as string,
+              model: first.model as string,
+              year: first.year as number,
+            };
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setCatalog([]);
+      })
+      .finally(() => {
+        if (!cancelled) setCatalogLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -163,51 +196,74 @@ function AuthForm() {
         ) : (
           <div className="space-y-4">
             <h2 className="text-xl font-bold">Add your vehicle</h2>
-            <p className="text-sm text-slate-400">Step 2 of 2 — pick your EV from our catalog</p>
-            <div>
-              <Label htmlFor="make">Make</Label>
-              <select
-                id="make"
-                className="h-11 w-full rounded-xl border border-slate-600 bg-slate-900 px-3"
-                value={vehicleForm.make}
-                onChange={(e) => {
-                  const first = catalog.find((v) => v.make === e.target.value) as Record<string, unknown>;
-                  setVehicleForm({
-                    make: e.target.value,
-                    model: (first?.model as string) ?? "",
-                    year: (first?.year as number) ?? 2024,
-                  });
-                }}
-              >
-                {makes.map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <Label htmlFor="model">Model</Label>
-              <select
-                id="model"
-                className="h-11 w-full rounded-xl border border-slate-600 bg-slate-900 px-3"
-                value={`${vehicleForm.model}|${vehicleForm.year}`}
-                onChange={(e) => {
-                  const [model, year] = e.target.value.split("|");
-                  setVehicleForm({ ...vehicleForm, model, year: parseInt(year) });
-                }}
-              >
-                {models.map((v) => (
-                  <option key={`${v.model}-${v.year}`} value={`${v.model}|${v.year}`}>
-                    {v.model as string} ({v.year as number})
-                  </option>
-                ))}
-              </select>
-            </div>
+            <p className="text-sm text-slate-400">
+              {setupMode && getAuthToken()
+                ? "Pick your EV from our catalog"
+                : "Step 2 of 2 — pick your EV from our catalog"}
+            </p>
+            {catalogLoading ? (
+              <p className="text-sm text-slate-400">Loading vehicle catalog…</p>
+            ) : makes.length === 0 ? (
+              <p className="rounded-xl bg-red-900/30 px-3 py-2 text-sm text-red-200" role="alert">
+                Could not load the vehicle catalog. Refresh the page and try again.
+              </p>
+            ) : (
+              <>
+                <div>
+                  <Label htmlFor="make">Make</Label>
+                  <select
+                    id="make"
+                    className="h-11 w-full rounded-xl border border-slate-600 bg-slate-900 px-3"
+                    value={vehicleForm.make}
+                    onChange={(e) => {
+                      const first = catalog.find((v) => v.make === e.target.value) as Record<
+                        string,
+                        unknown
+                      >;
+                      setVehicleForm({
+                        make: e.target.value,
+                        model: (first?.model as string) ?? "",
+                        year: (first?.year as number) ?? 2024,
+                      });
+                    }}
+                  >
+                    {makes.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label htmlFor="model">Model</Label>
+                  <select
+                    id="model"
+                    className="h-11 w-full rounded-xl border border-slate-600 bg-slate-900 px-3"
+                    value={`${vehicleForm.model}|${vehicleForm.year}`}
+                    onChange={(e) => {
+                      const [model, year] = e.target.value.split("|");
+                      setVehicleForm({ ...vehicleForm, model, year: parseInt(year, 10) });
+                    }}
+                  >
+                    {models.map((v) => (
+                      <option key={`${v.model}-${v.year}`} value={`${v.model}|${v.year}`}>
+                        {v.model as string} ({v.year as number})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
             {error && (
               <p className="rounded-xl bg-red-900/30 px-3 py-2 text-sm text-red-200" role="alert">
                 {error}
               </p>
             )}
-            <Button className="w-full" onClick={addVehicle} disabled={loading}>
+            <Button
+              className="w-full"
+              onClick={addVehicle}
+              disabled={loading || catalogLoading || makes.length === 0}
+            >
               {loading ? "Saving…" : "Finish setup"}
             </Button>
           </div>

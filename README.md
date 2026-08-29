@@ -12,6 +12,9 @@ Built from the EV Companion requirements and design specification — see [`docs
 - **Navigate** — Destination-first routing with automatic charge stops, alternative routes, and per-stop station picker
 - **Charging sessions** — Remote start/stop at supported stations with live energy and cost tracking
 - **Trip planning** — Routes with automatic charge stop insertion; up to 3 alternative routes; change any stop
+- **Settings** — Distance unit, default reserve charge, time zone, and multi-vehicle switcher
+- **Charger map** — Interactive map on the Chargers tab with station markers and locate-me
+- **Saved trips** — Reopen recent planned routes from Navigate without replanning
 - **Cost history** — Session list with energy and cost summaries
 
 ## Architecture
