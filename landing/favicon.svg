@@ -1,12 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
   <rect width="32" height="32" rx="8" fill="#041018"/>
-  <path d="M5 22 L9 12 L13 17 L17 9" stroke="#00e5ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="9" cy="12" r="1.5" fill="#00e5ff"/>
-  <path d="M20 6 L18 13 H22 L21 20 L26 12 H22 L24 6 Z" fill="url(#favBolt)"/>
+  <path d="M16 7 L11 17 H15 L13 25 L16 21 L19 25 L17 17 H21 L16 7 Z" fill="url(#favMark)"/>
   <defs>
-    <linearGradient id="favBolt" x1="18" y1="6" x2="26" y2="20" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#ffe566"/>
-      <stop offset="1" stop-color="#39ff14"/>
+    <linearGradient id="favMark" x1="11" y1="7" x2="21" y2="25" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00e5ff"/>
+      <stop offset="0.6" stop-color="#39ff14"/>
+      <stop offset="1" stop-color="#ffe566"/>
     </linearGradient>
   </defs>
 </svg>
