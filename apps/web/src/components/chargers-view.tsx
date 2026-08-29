@@ -10,7 +10,9 @@ import {
   loadCache,
 } from "@ev/domain";
 import { StaleDataBanner } from "@/components/stale-data-banner";
+import { LocateMeButton } from "@/components/locate-me-button";
 import { getReachabilityCache, stationsWithDistance } from "@/lib/reachability-client";
+import { getCurrentLocation } from "@/lib/geolocation";
 
 const MapView = dynamic(() => import("./charger-map").then((m) => m.ChargerMap), {
   ssr: false,
@@ -41,6 +43,8 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
   const [fromCache, setFromCache] = useState(false);
   const [cacheTimestamp, setCacheTimestamp] = useState<string | null>(null);
   const [directoryUnavailable, setDirectoryUnavailable] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
+  const [locating, setLocating] = useState(false);
 
   const applyCachedResults = (lat: number, lon: number) => {
     const cached = getCachedChargerResults(getReachabilityCache());
@@ -103,13 +107,31 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (pos) => search(pos.coords.latitude, pos.coords.longitude),
+        (pos) => {
+          const point = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+          setUserLocation(point);
+          search(point.lat, point.lon);
+        },
         () => search(initialLat, initialLon)
       );
     } else {
       search(initialLat, initialLon);
     }
   }, []);
+
+  const locateMe = async () => {
+    setLocating(true);
+    setError(null);
+    try {
+      const point = await getCurrentLocation();
+      setUserLocation(point);
+      await search(point.lat, point.lon);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not get your location");
+    } finally {
+      setLocating(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -149,6 +171,7 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
         >
           Search
         </button>
+        <LocateMeButton onClick={locateMe} loading={locating} />
       </div>
 
       {fallbackUsed && (
@@ -176,9 +199,12 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
 
       <MapView
         center={center}
+        userLocation={userLocation}
         stations={stations}
         selected={selected}
         onSelect={setSelected}
+        onLocateMe={locateMe}
+        locating={locating}
       />
 
       {loading ? (

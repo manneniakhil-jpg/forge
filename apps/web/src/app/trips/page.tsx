@@ -153,6 +153,7 @@ export default function TripsPage() {
             onError={setError}
             quickPicks={POPULAR_ORIGINS}
             quickPicksLabel="Popular starting points"
+            showLocateMe
           />
         </div>
 

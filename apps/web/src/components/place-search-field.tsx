@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Search } from "lucide-react";
+import { Search, LocateFixed } from "lucide-react";
 import { Button, Input, Label } from "@/components/ui";
+import { getCurrentLocation } from "@/lib/geolocation";
 
 export interface GeocodeHit {
   label: string;
@@ -27,6 +28,7 @@ interface PlaceSearchFieldProps {
   onError?: (message: string | null) => void;
   quickPicks?: string[];
   quickPicksLabel?: string;
+  showLocateMe?: boolean;
 }
 
 export function PlaceSearchField({
@@ -39,11 +41,13 @@ export function PlaceSearchField({
   onError,
   quickPicks,
   quickPicksLabel,
+  showLocateMe = false,
 }: PlaceSearchFieldProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<GeocodeHit[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [locating, setLocating] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -111,6 +115,26 @@ export function PlaceSearchField({
     onError?.(null);
   };
 
+  const locateMe = async () => {
+    setLocating(true);
+    onError?.(null);
+    try {
+      const point = await getCurrentLocation();
+      const hit: GeocodeHit = {
+        lat: point.lat,
+        lon: point.lon,
+        label: "Current location",
+      };
+      onChange(hit);
+      setQuery("Current location");
+      setShowResults(false);
+    } catch (e) {
+      onError?.(e instanceof Error ? e.message : "Could not get your location");
+    } finally {
+      setLocating(false);
+    }
+  };
+
   return (
     <div ref={containerRef} className="relative">
       <Label htmlFor={id}>{label}</Label>
@@ -139,6 +163,17 @@ export function PlaceSearchField({
         >
           <Search className="h-4 w-4" />
         </Button>
+        {showLocateMe && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={locateMe}
+            disabled={locating}
+            aria-label="Use my current location"
+          >
+            <LocateFixed className={`h-4 w-4 ${locating ? "animate-pulse" : ""}`} />
+          </Button>
+        )}
       </div>
 
       {showResults && results.length > 0 && (
