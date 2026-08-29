@@ -1,4 +1,4 @@
-import { computeUsableRangeKm, convertDistance, type ConnectorStandard } from "@ev/domain";
+import { computeUsableRangeKm, convertDistance, estimateChargeDurationMin, type ConnectorStandard } from "@ev/domain";
 
 export type DayTripIdea = {
   name: string;
@@ -91,7 +91,64 @@ export function weeklySummary(sessions: Array<{ startTs: string; energyKwh: numb
     sessionCount: recent.length,
     energyKwh: Math.round(energy * 10) / 10,
     cost: Math.round(cost * 100) / 100,
+    avgCostPerKwh: energy > 0 ? Math.round((cost / energy) * 100) / 100 : null,
   };
+}
+
+export function chargeToTargetInsight(
+  socPct: number | null | undefined,
+  batteryKwh: number,
+  targetSoc: number,
+  powerKw: number
+): { headline: string; detail: string } | null {
+  if (socPct == null || socPct >= targetSoc) return null;
+  const minutes = estimateChargeDurationMin(socPct, targetSoc, batteryKwh, powerKw);
+  return {
+    headline: `~${minutes} min to ${targetSoc}%`,
+    detail: `At about ${powerKw} kW — the usual target before a highway trip.`,
+  };
+}
+
+export type FavoriteStationGlance = {
+  id: string;
+  name: string;
+  distanceKm: number;
+  maxPowerKw: number;
+  availability: string;
+  distanceUnit: "km" | "mi";
+};
+
+export function pickFavoriteStations(
+  stations: Array<{
+    id: string;
+    operatorName: string;
+    distanceKm: number;
+    connectors: Array<{ maxPowerKw: number; availability: string; standard: ConnectorStandard }>;
+  }>,
+  favoriteIds: string[],
+  vehicleConnectors: ConnectorStandard[],
+  distanceUnit: "km" | "mi",
+  limit = 3
+): FavoriteStationGlance[] {
+  const favoriteSet = new Set(favoriteIds);
+
+  return stations
+    .filter((station) => favoriteSet.has(station.id))
+    .map((station) => {
+      const formatted = formatNearbyCharger(station, vehicleConnectors, distanceUnit);
+      if (!formatted) return null;
+      return {
+        id: station.id,
+        name: formatted.name,
+        distanceKm: formatted.distanceKm,
+        maxPowerKw: formatted.maxPowerKw,
+        availability: formatted.availability,
+        distanceUnit,
+      };
+    })
+    .filter((station): station is FavoriteStationGlance => station !== null)
+    .sort((a, b) => a.distanceKm - b.distanceKm)
+    .slice(0, limit);
 }
 
 export type NearbyFastCharger = {

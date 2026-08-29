@@ -10,6 +10,7 @@ import { TripNavigationPanel } from "@/components/trip-navigation-panel";
 import { PlaceSearchField, type GeocodeHit } from "@/components/place-search-field";
 import { chargeStopReason } from "@/lib/trip-station-scoring";
 import { getCurrentLocation } from "@/lib/geolocation";
+import { loadRecentDestination, saveRecentDestination } from "@/lib/home-storage";
 import { apiFetch, getAuthToken } from "@/lib/utils";
 import type { TripPlan } from "@ev/domain";
 
@@ -113,6 +114,13 @@ export default function TripsPage() {
     };
   }, [router]);
 
+  useEffect(() => {
+    const recent = loadRecentDestination();
+    if (recent) {
+      setDestination((current) => current ?? recent);
+    }
+  }, []);
+
   const runPlan = useCallback(
     async (from: GeocodeHit, to: GeocodeHit) => {
       const requestId = ++planRequestRef.current;
@@ -139,6 +147,7 @@ export default function TripsPage() {
         setPlanOptions(options);
         setSelectedPlanIndex(0);
         setPlan(options[0]);
+        saveRecentDestination({ lat: to.lat, lon: to.lon, label: to.label });
       } catch (e) {
         if (requestId !== planRequestRef.current) return;
         const err = e as { message?: string; code?: string; fields?: Record<string, string> };

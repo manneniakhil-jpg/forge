@@ -3,15 +3,19 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Zap, RefreshCw } from "lucide-react";
+import { Zap } from "lucide-react";
 import { Button, Card, Badge } from "@/components/ui";
 import { StaleDataBanner } from "@/components/stale-data-banner";
+import { HomeBatteryCard } from "@/components/home-battery-card";
 import { HomeDashboard } from "@/components/home-dashboard";
 import { apiFetch, getAuthToken } from "@/lib/utils";
 import { getCurrentLocation } from "@/lib/geolocation";
+import { loadRecentDestination, type SavedPlace } from "@/lib/home-storage";
 import {
   formatNearbyCharger,
+  pickFavoriteStations,
   weeklySummary,
+  type FavoriteStationGlance,
   type NearbyFastCharger,
 } from "@/lib/home-insights";
 import {
@@ -38,6 +42,17 @@ interface HomeData {
   } | null;
 }
 
+type ChargerStation = {
+  id: string;
+  operatorName: string;
+  distanceKm: number;
+  connectors: Array<{
+    maxPowerKw: number;
+    availability: string;
+    standard: ConnectorStandard;
+  }>;
+};
+
 type DisplayVehicleState = VehicleState & {
   stale?: boolean;
   fromCache?: boolean;
@@ -54,13 +69,19 @@ export default function HomePage() {
   const [state, setState] = useState<DisplayVehicleState | null>(null);
   const [session, setSession] = useState<DisplaySession | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [updatingSoc, setUpdatingSoc] = useState(false);
   const [refreshFailed, setRefreshFailed] = useState(false);
   const [sessionStale, setSessionStale] = useState(false);
-  const [manualSoc, setManualSoc] = useState("");
-  const [showManual, setShowManual] = useState(false);
-  const [weekly, setWeekly] = useState({ sessionCount: 0, energyKwh: 0, cost: 0 });
+  const [weekly, setWeekly] = useState({
+    sessionCount: 0,
+    energyKwh: 0,
+    cost: 0,
+    avgCostPerKwh: null as number | null,
+  });
   const [nearbyFast, setNearbyFast] = useState<NearbyFastCharger | null>(null);
+  const [favorites, setFavorites] = useState<FavoriteStationGlance[]>([]);
   const [nearbyLoading, setNearbyLoading] = useState(false);
+  const [recentDestination, setRecentDestination] = useState<SavedPlace | null>(null);
 
   const loadVehicleState = (vehicleId: string, failed: boolean, incoming: VehicleState | null) => {
     const cache = loadCache();
@@ -77,90 +98,106 @@ export default function HomePage() {
     return merged;
   };
 
+  const loadChargingContext = async (
+    vehicle: NonNullable<HomeData["activeVehicle"]>,
+    distanceUnit: "km" | "mi"
+  ) => {
+    setNearbyLoading(true);
+    try {
+      const point = await getCurrentLocation();
+      const chargers = await apiFetch<{
+        stations: ChargerStation[];
+        favorites: string[];
+      }>(`/api/chargers?lat=${point.lat}&lon=${point.lon}&radiusKm=30`);
+
+      const fast = chargers.stations
+        .map((s) => formatNearbyCharger(s, vehicle.connectorStandards, distanceUnit))
+        .filter((s): s is NearbyFastCharger => s !== null && s.maxPowerKw >= 100)
+        .sort((a, b) => a.distanceKm - b.distanceKm)[0];
+
+      setNearbyFast(fast ?? null);
+      setFavorites(
+        pickFavoriteStations(
+          chargers.stations,
+          chargers.favorites ?? [],
+          vehicle.connectorStandards,
+          distanceUnit
+        )
+      );
+    } catch {
+      setNearbyFast(null);
+      setFavorites([]);
+    } finally {
+      setNearbyLoading(false);
+    }
+  };
+
   const load = async () => {
     if (!getAuthToken()) {
       router.replace("/auth");
       return;
     }
+    setRecentDestination(loadRecentDestination());
     try {
       const me = await apiFetch<HomeData>("/api/me");
       setData(me);
 
-      if (me.activeVehicle) {
-        const cached = loadCache().vehicleStates[me.activeVehicle.id];
-        if (cached) {
-          const { cachedAt: _, ...cachedState } = cached;
-          setState({ ...cachedState, stale: true, fromCache: true });
-        }
-
-        try {
-          const vs = await apiFetch<{ state: VehicleState }>(
-            `/api/vehicles/${me.activeVehicle.id}`
-          );
-          loadVehicleState(me.activeVehicle.id, false, vs.state);
-          setRefreshFailed(false);
-        } catch {
-          loadVehicleState(me.activeVehicle.id, true, null);
-        }
-      }
-
-      try {
-        const cs = await apiFetch<{
-          session: (CachedActiveSession & { lastRefreshAt?: string }) | null;
-        }>("/api/charging-sessions");
-        const incoming = cs.session
-          ? {
-              id: cs.session.id,
-              energyKwh: cs.session.energyKwh,
-              instantaneousPowerKw: cs.session.instantaneousPowerKw,
-              elapsedSeconds: cs.session.elapsedSeconds,
-              cost: cs.session.cost,
-              currency: cs.session.currency,
-              lastRefreshAt: cs.session.lastRefreshAt ?? new Date().toISOString(),
+      const vehicleTask = me.activeVehicle
+        ? (async () => {
+            const cached = loadCache().vehicleStates[me.activeVehicle!.id];
+            if (cached) {
+              const { cachedAt: _, ...cachedState } = cached;
+              setState({ ...cachedState, stale: true, fromCache: true });
             }
-          : null;
-        loadActiveSession(false, incoming);
-      } catch {
-        loadActiveSession(true, null);
-      }
+            try {
+              const vs = await apiFetch<{ state: VehicleState }>(
+                `/api/vehicles/${me.activeVehicle!.id}`
+              );
+              loadVehicleState(me.activeVehicle!.id, false, vs.state);
+              setRefreshFailed(false);
+            } catch {
+              loadVehicleState(me.activeVehicle!.id, true, null);
+            }
+          })()
+        : Promise.resolve();
 
-      try {
-        const history = await apiFetch<{
-          sessions: Array<{ startTs: string; energyKwh: number; cost: number | null }>;
-        }>("/api/history");
-        setWeekly(weeklySummary(history.sessions));
-      } catch {
-        setWeekly({ sessionCount: 0, energyKwh: 0, cost: 0 });
-      }
+      const sessionTask = (async () => {
+        try {
+          const cs = await apiFetch<{
+            session: (CachedActiveSession & { lastRefreshAt?: string }) | null;
+          }>("/api/charging-sessions");
+          const incoming = cs.session
+            ? {
+                id: cs.session.id,
+                energyKwh: cs.session.energyKwh,
+                instantaneousPowerKw: cs.session.instantaneousPowerKw,
+                elapsedSeconds: cs.session.elapsedSeconds,
+                cost: cs.session.cost,
+                currency: cs.session.currency,
+                lastRefreshAt: cs.session.lastRefreshAt ?? new Date().toISOString(),
+              }
+            : null;
+          loadActiveSession(false, incoming);
+        } catch {
+          loadActiveSession(true, null);
+        }
+      })();
+
+      const historyTask = (async () => {
+        try {
+          const history = await apiFetch<{
+            sessions: Array<{ startTs: string; energyKwh: number; cost: number | null }>;
+          }>("/api/history");
+          setWeekly(weeklySummary(history.sessions));
+        } catch {
+          setWeekly({ sessionCount: 0, energyKwh: 0, cost: 0, avgCostPerKwh: null });
+        }
+      })();
+
+      await Promise.all([vehicleTask, sessionTask, historyTask]);
 
       if (me.activeVehicle) {
-        setNearbyLoading(true);
-        try {
-          const point = await getCurrentLocation();
-          const chargers = await apiFetch<{
-            stations: Array<{
-              operatorName: string;
-              distanceKm: number;
-              connectors: Array<{
-                maxPowerKw: number;
-                availability: string;
-                standard: ConnectorStandard;
-              }>;
-            }>;
-          }>(
-            `/api/chargers?lat=${point.lat}&lon=${point.lon}&radiusKm=25&minPowerKw=100`
-          );
-          const best = chargers.stations
-            .map((s) =>
-              formatNearbyCharger(s, me.activeVehicle!.connectorStandards, me.account.distanceUnit)
-            )
-            .find((s): s is NearbyFastCharger => s !== null);
-          setNearbyFast(best ?? null);
-        } catch {
-          setNearbyFast(null);
-        } finally {
-          setNearbyLoading(false);
-        }
+        void loadChargingContext(me.activeVehicle, me.account.distanceUnit);
       }
     } catch {
       router.replace("/auth");
@@ -210,16 +247,22 @@ export default function HomePage() {
     }
   };
 
-  const updateManualSoc = async () => {
-    if (!data?.activeVehicle) return;
-    const soc = parseInt(manualSoc);
-    await apiFetch(`/api/vehicles/${data.activeVehicle.id}`, {
-      method: "PUT",
-      body: JSON.stringify({ socPct: soc }),
-    });
-    setShowManual(false);
-    setRefreshFailed(false);
-    await load();
+  const setSoc = async (socPct: number) => {
+    if (!data?.activeVehicle || updatingSoc) return;
+    setUpdatingSoc(true);
+    try {
+      await apiFetch(`/api/vehicles/${data.activeVehicle.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ socPct }),
+      });
+      setRefreshFailed(false);
+      const vs = await apiFetch<{ state: VehicleState }>(
+        `/api/vehicles/${data.activeVehicle.id}`
+      );
+      loadVehicleState(data.activeVehicle.id, false, vs.state);
+    } finally {
+      setUpdatingSoc(false);
+    }
   };
 
   const stopSession = async () => {
@@ -277,89 +320,18 @@ export default function HomePage() {
         <StaleDataBanner message="Vehicle data is unavailable right now." />
       )}
 
-      <Card className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-emerald-600/10 to-transparent" />
-        <div className="relative flex items-center gap-6">
-          <div
-            className="relative flex h-28 w-28 shrink-0 items-center justify-center rounded-full border-4 border-emerald-500/30 bg-slate-950"
-            role="img"
-            aria-label={`Battery charge ${state?.socPct ?? "unavailable"} percent`}
-          >
-            <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full -rotate-90">
-              <circle cx="50" cy="50" r="42" fill="none" stroke="#1e293b" strokeWidth="8" />
-              <circle
-                cx="50"
-                cy="50"
-                r="42"
-                fill="none"
-                stroke="#10b981"
-                strokeWidth="8"
-                strokeDasharray={`${((state?.socPct ?? 0) / 100) * 264} 264`}
-                strokeLinecap="round"
-              />
-            </svg>
-            <span className="text-3xl font-bold tabular-nums">
-              {state?.socPct ?? "—"}
-              {state?.socPct != null && <span className="text-lg">%</span>}
-            </span>
-          </div>
-          <div className="min-w-0 flex-1 space-y-2">
-            <div>
-              <p className="text-sm text-slate-400">Estimated range</p>
-              <p className="text-2xl font-semibold tabular-nums">
-                {rangeDisplay != null ? `${rangeDisplay} ${unit}` : "Unavailable"}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={state?.pluggedIn ? "success" : "default"}>
-                {state?.pluggedIn
-                  ? "Plugged in"
-                  : state?.pluggedIn === false
-                    ? "Not plugged in"
-                    : "Unknown"}
-              </Badge>
-              {showStaleBadge && state?.capturedAt && (
-                <Badge variant="warning">{age.display}</Badge>
-              )}
-              {!showStaleBadge && state?.capturedAt && (
-                <span className="text-xs text-slate-500">{age.display}</span>
-              )}
-            </div>
-          </div>
-        </div>
-        <div className="relative mt-4 flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={refreshState}
-            disabled={refreshing}
-            aria-label="Refresh vehicle state"
-          >
-            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => setShowManual(!showManual)}>
-            Update charge level
-          </Button>
-        </div>
-        {showManual && (
-          <div className="relative mt-3 flex gap-2">
-            <input
-              type="number"
-              min={0}
-              max={100}
-              value={manualSoc}
-              onChange={(e) => setManualSoc(e.target.value)}
-              placeholder="0–100"
-              className="h-11 flex-1 rounded-xl border border-slate-600 bg-slate-950 px-3"
-              aria-label="State of charge percentage"
-            />
-            <Button size="sm" onClick={updateManualSoc}>
-              Save
-            </Button>
-          </div>
-        )}
-      </Card>
+      <HomeBatteryCard
+        state={state}
+        rangeDisplay={rangeDisplay}
+        unit={unit}
+        reserveSocPct={data.account.reserveSoc ?? 10}
+        showStaleBadge={showStaleBadge}
+        ageDisplay={state?.capturedAt ? age.display : null}
+        refreshing={refreshing}
+        updatingSoc={updatingSoc}
+        onRefresh={refreshState}
+        onSetSoc={setSoc}
+      />
 
       {session && (
         <Card className="border-emerald-700/50 charging-pulse">
@@ -368,9 +340,7 @@ export default function HomePage() {
               <Zap className="h-5 w-5" />
               <span className="font-semibold">Charging in progress</span>
             </div>
-            {sessionStale && sessionAge && (
-              <Badge variant="warning">{sessionAge.display}</Badge>
-            )}
+            {sessionStale && sessionAge && <Badge variant="warning">{sessionAge.display}</Badge>}
           </div>
           {sessionStale && (
             <p className="mt-2 text-xs text-amber-200">
@@ -409,6 +379,9 @@ export default function HomePage() {
         weekly={weekly}
         nearbyFast={nearbyFast}
         nearbyLoading={nearbyLoading}
+        favorites={favorites}
+        recentDestination={recentDestination}
+        isCharging={Boolean(session)}
       />
     </div>
   );
