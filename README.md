@@ -44,7 +44,24 @@ Open [http://localhost:4317](http://localhost:4317).
 2. Add your vehicle from the catalog
 3. Explore the home dashboard, charger map, trip planner, and history tabs
 
-Sample charging stations are seeded around the San Francisco Bay Area.
+Sample charging stations are seeded around the San Francisco Bay Area when Google Places is not configured.
+
+### Google Places (nearby chargers)
+
+Charger search uses the **Google Places API (New)** when an API key is set. Without it, the app falls back to local demo seed data.
+
+1. Create a project in [Google Cloud Console](https://console.cloud.google.com/)
+2. Enable **Places API (New)**
+3. Create an API key and restrict it to Places API + your server IP/domain
+4. Add to `apps/web/.env.local`:
+
+```bash
+GOOGLE_MAPS_API_KEY=your_key_here
+```
+
+Restart the dev server after adding the key. The charger map subtitle will show **via Google Maps** when live data is used.
+
+Billing applies per Google’s [Places pricing](https://developers.google.com/maps/billing-and-pricing). Results are cached for 15 minutes per search area to limit cost.
 
 ## Project structure
 

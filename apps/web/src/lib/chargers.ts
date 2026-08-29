@@ -1,5 +1,6 @@
 import { getDb } from "./db";
 import { seedStationsNearPoint } from "./seed";
+import { fetchNearbyEvStations, getCachedGoogleStation, isGooglePlacesConfigured } from "./google-places";
 import {
   haversineKm,
   resolveAvailability,
@@ -76,14 +77,17 @@ function matchesFilters(station: ChargingStation, params: SearchParams): boolean
   return matchingConnectors.length > 0;
 }
 
-export function searchChargers(
-  params: SearchParams,
-  options: { allowRegionalSeed?: boolean } = {}
-): {
+export type ChargerSearchResult = {
   stations: Array<ChargingStation & { distanceKm: number; outsideRadius?: boolean }>;
   fallbackUsed: boolean;
   regionalDemoAdded: boolean;
-} {
+  dataSource: "google_places" | "local_seed";
+};
+
+function searchLocalChargers(
+  params: SearchParams,
+  options: { allowRegionalSeed?: boolean } = {}
+): Omit<ChargerSearchResult, "dataSource"> {
   const { allowRegionalSeed = true } = options;
   const db = getDb();
   const allIds = db.prepare("SELECT id FROM charging_stations").all() as Array<{ id: string }>;
@@ -113,7 +117,7 @@ export function searchChargers(
   if (within250.length === 0 && allowRegionalSeed) {
     const added = seedStationsNearPoint(db, params.lat, params.lon);
     if (added) {
-      const retry = searchChargers(params, { allowRegionalSeed: false });
+      const retry = searchLocalChargers(params, { allowRegionalSeed: false });
       return { ...retry, regionalDemoAdded: true };
     }
   }
@@ -125,6 +129,55 @@ export function searchChargers(
     fallbackUsed: fallback.length > 0,
     regionalDemoAdded: false,
   };
+}
+
+export async function searchChargers(
+  params: SearchParams,
+  options: { allowRegionalSeed?: boolean } = {}
+): Promise<ChargerSearchResult> {
+  if (isGooglePlacesConfigured() && !params.networkId) {
+    try {
+      const googleStations = await fetchNearbyEvStations({
+        lat: params.lat,
+        lon: params.lon,
+        radiusKm: params.radiusKm,
+        connectorStandard: params.connectorStandard,
+        minPowerKw: params.minPowerKw,
+      });
+
+      let filtered = googleStations;
+      if (params.priceCeiling !== undefined) {
+        filtered = googleStations.filter((s) =>
+          s.connectors.some(
+            (c) => c.pricePerKwh !== "Unknown" && c.pricePerKwh <= params.priceCeiling!
+          )
+        );
+      }
+
+      const inRadius = filtered.filter((s) => s.distanceKm <= params.radiusKm).slice(0, 200);
+      if (inRadius.length > 0) {
+        return {
+          stations: inRadius,
+          fallbackUsed: false,
+          regionalDemoAdded: false,
+          dataSource: "google_places",
+        };
+      }
+
+      if (filtered.length > 0) {
+        return {
+          stations: filtered.slice(0, 5).map((s) => ({ ...s, outsideRadius: true })),
+          fallbackUsed: true,
+          regionalDemoAdded: false,
+          dataSource: "google_places",
+        };
+      }
+    } catch (error) {
+      console.error("[chargers] Google Places search failed:", error);
+    }
+  }
+
+  return { ...searchLocalChargers(params, options), dataSource: "local_seed" };
 }
 
 export function getFavorites(ownerId: string): string[] {
@@ -154,6 +207,9 @@ export function addFavorite(ownerId: string, stationId: string): boolean {
 }
 
 export function getStationById(stationId: string): ChargingStation | null {
+  if (stationId.startsWith("gmap_")) {
+    return getCachedGoogleStation(stationId);
+  }
   return loadStation(stationId);
 }
 

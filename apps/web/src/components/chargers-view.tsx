@@ -34,6 +34,7 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
   const [error, setError] = useState<string | null>(null);
   const [fallbackUsed, setFallbackUsed] = useState(false);
   const [regionalDemoAdded, setRegionalDemoAdded] = useState(false);
+  const [dataSource, setDataSource] = useState<"google_places" | "local_seed" | null>(null);
   const [filters, setFilters] = useState({
     radiusKm: 15,
     connectorStandard: "",
@@ -68,6 +69,7 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
     setCacheTimestamp(null);
     setDirectoryUnavailable(false);
     setRegionalDemoAdded(false);
+    setDataSource(null);
     try {
       const params = new URLSearchParams({
         lat: String(lat),
@@ -92,6 +94,7 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
       setStations(data.stations);
       setFallbackUsed(data.fallbackUsed);
       setRegionalDemoAdded(Boolean(data.regionalDemoAdded));
+      setDataSource(data.dataSource ?? "local_seed");
       setCenter({ lat, lon });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Search failed";
@@ -146,7 +149,12 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold">Find Chargers</h1>
-        <p className="text-slate-400">Stations near you that match your vehicle</p>
+        <p className="text-slate-400">
+          Stations near you that match your vehicle
+          {dataSource === "google_places" && (
+            <span className="text-slate-500"> · via Google Maps</span>
+          )}
+        </p>
       </div>
 
       <div className="flex flex-wrap gap-3">
