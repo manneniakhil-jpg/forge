@@ -22,6 +22,19 @@ export function googleMapsNavigationUrl(
   return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
 
+/** Driving directions to a destination; uses current location when origin is omitted. */
+export function googleMapsDirectionsUrl(destination: Coord, origin?: Coord | null): string {
+  const params = new URLSearchParams({
+    api: "1",
+    destination: formatCoord(destination),
+    travelmode: "driving",
+  });
+  if (origin) {
+    params.set("origin", formatCoord(origin));
+  }
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
 /** Open navigation in Apple Maps (best on iPhone, iPad, and Mac). */
 export function appleMapsNavigationUrl(
   origin: Coord,

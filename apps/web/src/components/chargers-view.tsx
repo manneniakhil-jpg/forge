@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { ExternalLink } from "lucide-react";
 import type { ChargingStation } from "@ev/domain";
 import {
   cacheChargerResults,
@@ -13,6 +14,7 @@ import { StaleDataBanner } from "@/components/stale-data-banner";
 import { LocateMeButton } from "@/components/locate-me-button";
 import { getReachabilityCache, stationsWithDistance } from "@/lib/reachability-client";
 import { getCurrentLocation } from "@/lib/geolocation";
+import { googleMapsDirectionsUrl } from "@/lib/navigation-links";
 
 const MapView = dynamic(() => import("./charger-map").then((m) => m.ChargerMap), {
   ssr: false,
@@ -277,6 +279,19 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
                   </span>
                 ))}
               </div>
+              <a
+                href={googleMapsDirectionsUrl(
+                  { lat: station.latitude, lon: station.longitude },
+                  userLocation
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="mt-3 inline-flex min-h-[44px] items-center gap-1.5 text-sm font-medium text-emerald-400 hover:text-emerald-300"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Get directions on Google Maps
+              </a>
             </button>
           ))}
         </div>
@@ -285,6 +300,7 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
       {selected && (
         <StationDetail
           station={selected}
+          userLocation={userLocation}
           onClose={() => setSelected(null)}
           onFavorite={async () => {
             await fetch(`/api/favorites/${selected.id}`, {
@@ -315,15 +331,22 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
 
 function StationDetail({
   station,
+  userLocation,
   onClose,
   onFavorite,
   onStartCharge,
 }: {
   station: ChargingStation & { distanceKm: number };
+  userLocation: { lat: number; lon: number } | null;
   onClose: () => void;
   onFavorite: () => void;
   onStartCharge: (connectorId: string) => void;
 }) {
+  const directionsUrl = googleMapsDirectionsUrl(
+    { lat: station.latitude, lon: station.longitude },
+    userLocation
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/60 sm:items-center sm:justify-center">
       <div className="max-h-[85vh] w-full overflow-y-auto rounded-t-3xl border border-slate-700 bg-slate-900 p-6 sm:max-w-lg sm:rounded-3xl">
@@ -358,9 +381,18 @@ function StationDetail({
             </div>
           ))}
         </div>
+        <a
+          href={directionsUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mb-4 inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700"
+        >
+          <ExternalLink className="h-4 w-4" />
+          Get directions on Google Maps
+        </a>
         <button
           onClick={onFavorite}
-          className="mt-4 w-full rounded-xl border border-slate-600 py-2.5 text-sm hover:bg-slate-800 min-h-[44px]"
+          className="w-full rounded-xl border border-slate-600 py-2.5 text-sm hover:bg-slate-800 min-h-[44px]"
         >
           Add to favorites
         </button>
