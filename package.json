@@ -1,0 +1,13 @@
+{
+  "name": "ev-companion",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @ev/web",
+    "build": "npm run build -w @ev/domain && npm run build -w @ev/web",
+    "start": "npm run start -w @ev/web"
+  }
+}

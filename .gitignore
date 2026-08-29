@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build
+.next/
+out/
+dist/
+build/
+
+# Local data
+data/
+*.db
+
+# Debug
+npm-debug.log*
+.DS_Store
+*.pem
+
+# Env
+.env
+.env*.local
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# IDE
+.idea/
+.vscode/
+
+# Misc
+coverage/
+.turbo/
