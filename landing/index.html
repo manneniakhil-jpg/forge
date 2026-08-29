@@ -4,46 +4,110 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="drieEV — Drive EV with ease. Launching soon." />
-    <meta name="theme-color" content="#020617" />
+    <meta name="theme-color" content="#041018" />
     <title>drieEV · Drive EV with ease</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div class="bg-glow" aria-hidden="true"></div>
-    <div class="grid-lines" aria-hidden="true"></div>
+    <div class="sky" aria-hidden="true"></div>
+    <div class="road" aria-hidden="true">
+      <div class="road-lines"></div>
+    </div>
+
+    <div class="ev-scene" aria-hidden="true">
+      <svg class="ev-art" viewBox="0 0 800 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Charging station -->
+        <rect x="620" y="120" width="48" height="140" rx="8" stroke="url(#stationStroke)" stroke-width="2" opacity="0.7" />
+        <rect x="632" y="140" width="24" height="36" rx="4" fill="url(#screenGlow)" opacity="0.9" />
+        <circle cx="644" cy="200" r="6" fill="#39ff14" class="pulse-dot" />
+        <path d="M668 168 Q700 168 720 190" stroke="url(#cableGlow)" stroke-width="3" stroke-linecap="round" />
+        <path d="M668 168 Q700 168 720 190" stroke="#00e5ff" stroke-width="1.5" stroke-linecap="round" class="energy-flow" />
+
+        <!-- EV silhouette -->
+        <path
+          d="M80 260 Q120 220 200 215 L480 215 Q560 215 600 240 L640 260 L640 280 L80 280 Z"
+          fill="url(#carBody)"
+          stroke="url(#carStroke)"
+          stroke-width="2"
+        />
+        <path d="M200 215 Q260 175 340 175 L420 175 Q480 175 520 215" stroke="url(#carStroke)" stroke-width="2" fill="rgba(0,229,255,0.06)" />
+        <circle cx="180" cy="280" r="28" stroke="#00e5ff" stroke-width="2" opacity="0.5" />
+        <circle cx="180" cy="280" r="14" fill="#0a1628" stroke="#39ff14" stroke-width="2" />
+        <circle cx="520" cy="280" r="28" stroke="#00e5ff" stroke-width="2" opacity="0.5" />
+        <circle cx="520" cy="280" r="14" fill="#0a1628" stroke="#39ff14" stroke-width="2" />
+
+        <!-- Lightning bolt -->
+        <path
+          d="M360 90 L340 150 H375 L355 210 L410 130 H372 L395 70 Z"
+          fill="url(#boltFill)"
+          class="bolt"
+        />
+
+        <defs>
+          <linearGradient id="stationStroke" x1="620" y1="120" x2="668" y2="260" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#00e5ff" />
+            <stop offset="1" stop-color="#39ff14" />
+          </linearGradient>
+          <linearGradient id="screenGlow" x1="632" y1="140" x2="656" y2="176" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#00e5ff" stop-opacity="0.4" />
+            <stop offset="1" stop-color="#39ff14" stop-opacity="0.2" />
+          </linearGradient>
+          <linearGradient id="cableGlow" x1="668" y1="168" x2="720" y2="190" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#39ff14" />
+            <stop offset="1" stop-color="#00e5ff" />
+          </linearGradient>
+          <linearGradient id="carBody" x1="80" y1="215" x2="640" y2="280" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#0d2847" />
+            <stop offset="0.5" stop-color="#0a3d5c" />
+            <stop offset="1" stop-color="#0d2847" />
+          </linearGradient>
+          <linearGradient id="carStroke" x1="80" y1="175" x2="640" y2="280" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#00e5ff" />
+            <stop offset="1" stop-color="#39ff14" />
+          </linearGradient>
+          <linearGradient id="boltFill" x1="340" y1="70" x2="410" y2="210" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#ffe566" />
+            <stop offset="0.5" stop-color="#39ff14" />
+            <stop offset="1" stop-color="#00e5ff" />
+          </linearGradient>
+        </defs>
+      </svg>
+    </div>
 
     <main class="page">
+      <div class="charge-ring" aria-hidden="true">
+        <svg viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="44" class="ring-bg" />
+          <circle cx="50" cy="50" r="44" class="ring-fill" />
+        </svg>
+        <span class="ring-icon">⚡</span>
+      </div>
+
       <header class="brand">
-        <div class="logo" aria-hidden="true">
-          <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="8" y="14" width="28" height="20" rx="4" stroke="currentColor" stroke-width="2" />
-            <rect x="12" y="18" width="14" height="12" rx="2" fill="currentColor" opacity="0.35" />
-            <path d="M36 22h4v4h-4v-4z" fill="currentColor" />
-            <path
-              d="M16 26h6M16 29h4"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-              opacity="0.6"
-            />
-          </svg>
-        </div>
-        <h1 class="name">drieEV</h1>
+        <h1 class="name">
+          <span class="name-ev">EV</span>
+          <span class="name-prefix">drie</span>
+        </h1>
         <p class="tagline">Drive EV with ease</p>
       </header>
 
       <section class="hero">
-        <p class="badge">Launching soon</p>
-        <p class="lead">
-          Charge smarter, plan farther, and spend less time thinking about where to plug in.
+        <p class="badge">
+          <span class="badge-dot"></span>
+          Launching soon
         </p>
+        <ul class="ev-pills" aria-label="Coming features">
+          <li>Charge</li>
+          <li>Navigate</li>
+          <li>Track</li>
+        </ul>
       </section>
 
       <footer class="footer">
