@@ -152,34 +152,15 @@ body {
 
 .brand-logo {
   position: relative;
-  width: 3.25rem;
-  height: 3.25rem;
+  width: 4rem;
+  height: 4rem;
   margin-bottom: 0.85rem;
 }
 
 .logo-mark {
   width: 100%;
   height: 100%;
-  filter: drop-shadow(0 0 10px rgba(0, 229, 255, 0.22));
-}
-
-.ring-bg {
-  fill: none;
-  stroke: rgba(0, 229, 255, 0.12);
-  stroke-width: 2;
-}
-
-.ring-fill {
-  fill: none;
-  stroke: url(#ringGradient);
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-dasharray: 132;
-  stroke-dashoffset: 28;
-  transform-origin: 24px 24px;
-  transform: rotate(-90deg);
-  animation: ringSpin 4s linear infinite;
-  opacity: 0.85;
+  overflow: visible;
 }
 
 .logo-symbol {
@@ -187,45 +168,22 @@ body {
 }
 
 .logo-pin {
-  filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.28));
-  opacity: 0.92;
-}
-
-.logo-pin-core {
-  transform-origin: 24px 19px;
+  filter: drop-shadow(0 0 4px rgba(0, 229, 255, 0.25));
 }
 
 .logo-bolt {
-  filter: drop-shadow(0 0 6px rgba(255, 229, 102, 0.95)) drop-shadow(0 0 12px rgba(57, 255, 20, 0.55));
+  filter: drop-shadow(0 0 3px #ffe566) drop-shadow(0 0 8px rgba(57, 255, 20, 0.85));
   animation: boltFlash 2s ease-in-out infinite;
-  transform-origin: 24px 20px;
+  transform-origin: 24px 21px;
 }
 
 @keyframes boltFlash {
   0%,
   100% {
-    opacity: 0.94;
-    filter: drop-shadow(0 0 6px rgba(255, 229, 102, 0.85)) drop-shadow(0 0 10px rgba(57, 255, 20, 0.45));
+    filter: drop-shadow(0 0 3px #ffe566) drop-shadow(0 0 8px rgba(57, 255, 20, 0.75));
   }
   50% {
-    opacity: 1;
-    filter: drop-shadow(0 0 10px rgba(255, 229, 102, 1)) drop-shadow(0 0 18px rgba(57, 255, 20, 0.9));
-  }
-}
-
-.brand-logo::before {
-  content: "";
-  position: absolute;
-  inset: -6px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(57, 255, 20, 0.14), transparent 68%);
-  animation: chargeGlow 2.5s ease-in-out infinite;
-  z-index: -1;
-}
-
-@keyframes ringSpin {
-  to {
-    stroke-dashoffset: -104;
+    filter: drop-shadow(0 0 5px #fffef0) drop-shadow(0 0 14px rgba(57, 255, 20, 1));
   }
 }
 
