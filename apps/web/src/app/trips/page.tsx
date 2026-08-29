@@ -7,6 +7,7 @@ import { Route } from "lucide-react";
 import { Button, Card, Input, Label } from "@/components/ui";
 import { TripNavigationPanel } from "@/components/trip-navigation-panel";
 import { PlaceSearchField, type GeocodeHit } from "@/components/place-search-field";
+import { getCurrentLocation } from "@/lib/geolocation";
 import { apiFetch, getAuthToken } from "@/lib/utils";
 import type { TripPlan } from "@ev/domain";
 
@@ -59,33 +60,33 @@ export default function TripsPage() {
   useEffect(() => {
     if (!getAuthToken()) router.replace("/auth");
 
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setOrigin({
-            lat: pos.coords.latitude,
-            lon: pos.coords.longitude,
-            label: "Current location",
-          });
-          setOriginLoading(false);
-        },
-        () => {
-          setOrigin({
-            lat: 37.7749,
-            lon: -122.4194,
-            label: "San Francisco, California, United States",
-          });
-          setOriginLoading(false);
-        }
-      );
-    } else {
-      setOrigin({
-        lat: 37.7749,
-        lon: -122.4194,
-        label: "San Francisco, California, United States",
-      });
-      setOriginLoading(false);
-    }
+    let cancelled = false;
+    const sfDefault: GeocodeHit = {
+      lat: 37.7749,
+      lon: -122.4194,
+      label: "San Francisco, California, United States",
+    };
+
+    void (async () => {
+      try {
+        const point = await getCurrentLocation();
+        if (cancelled) return;
+        setOrigin({
+          lat: point.lat,
+          lon: point.lon,
+          label: "Current location",
+        });
+      } catch {
+        if (cancelled) return;
+        setOrigin(sfDefault);
+      } finally {
+        if (!cancelled) setOriginLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   const planTrip = async () => {
