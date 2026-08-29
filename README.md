@@ -69,6 +69,38 @@ Sample charging stations are seeded around the San Francisco Bay Area.
 | `GET /api/charging-sessions` | Active session status |
 | `GET /api/history` | Charging history and summary |
 
+## Deploy to the web
+
+The app uses SQLite for accounts and sessions, so deploy to a platform with **persistent disk** (not serverless-only hosts like plain Vercel).
+
+### Option A: Railway (recommended)
+
+1. Push this repo to GitHub (or connect via Origin).
+2. Go to [railway.app](https://railway.app) and create a new project from your repo.
+3. Railway reads `railway.toml` and builds the `Dockerfile` automatically.
+4. Add a **volume** mounted at `/data` (required so user accounts persist).
+5. Set environment variable: `DATA_DIR=/data`
+6. Generate a public domain under **Settings → Networking**.
+
+Your live URL will look like `https://ev-companion-production.up.railway.app`.
+
+### Option B: Render
+
+1. Go to [render.com](https://render.com) and create a **Blueprint** from this repo.
+2. Render uses `render.yaml`, which includes a 1 GB disk at `/data`.
+3. Deploy — Render assigns a `*.onrender.com` URL.
+
+### Verify deployment
+
+```bash
+curl https://YOUR-URL/api/health
+# {"status":"ok",...}
+```
+
+### Why not Vercel alone?
+
+Vercel serverless functions have no persistent filesystem. SQLite data would reset on every deploy/cold start. Use Railway or Render, or migrate to Turso/PostgreSQL before targeting Vercel.
+
 ## License
 
 Private — all rights reserved.

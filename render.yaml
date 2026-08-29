@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: ev-companion
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /data
+      - key: PORT
+        value: "4317"
+    disk:
+      name: ev-data
+      mountPath: /data
+      sizeGB: 1

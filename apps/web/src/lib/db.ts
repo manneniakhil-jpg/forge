@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs";
 import { seedDatabase } from "./seed";
 
-const DATA_DIR = path.join(process.cwd(), "data");
+const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "ev-companion.db");
 
 let db: Database.Database | null = null;
