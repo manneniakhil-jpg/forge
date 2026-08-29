@@ -24,6 +24,10 @@ function AuthForm() {
   });
 
   useEffect(() => {
+    if (getAuthToken() && setupMode) {
+      setStep("vehicle");
+      return;
+    }
     if (getAuthToken() && !setupMode) router.replace("/");
     fetch("/api/catalog")
       .then((r) => r.json())

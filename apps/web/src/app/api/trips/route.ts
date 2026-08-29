@@ -1,10 +1,37 @@
 import { NextRequest } from "next/server";
-import { validateReserveSoc } from "@ev/domain";
+import { validateReserveSoc, type TripPlan } from "@ev/domain";
 import { validateSession, getAccount } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { planTrip, planTripAlternatives } from "@/lib/trip-planner";
 import { apiError, getAuthHeader, jsonOk } from "@/lib/api-helpers";
 import type { ConnectorStandard } from "@ev/domain";
+
+export async function GET(request: NextRequest) {
+  const auth = validateSession(getAuthHeader(request));
+  if ("error" in auth) return apiError(auth.error, "Session expired", 401);
+
+  const rows = getDb()
+    .prepare(
+      `SELECT id, plan_json, created_at FROM trip_plans
+       WHERE owner_id = ? ORDER BY created_at DESC LIMIT 20`
+    )
+    .all(auth.ownerId) as Array<{ id: string; plan_json: string; created_at: string }>;
+
+  const trips = rows.map((row) => {
+    const plan = JSON.parse(row.plan_json) as TripPlan;
+    return {
+      id: row.id,
+      createdAt: row.created_at,
+      originLabel: plan.origin.label,
+      destinationLabel: plan.destination.label,
+      totalDistanceKm: plan.totalDistanceKm,
+      chargeStopCount: plan.chargeStops.length,
+      totalMin: plan.totalDrivingMin + plan.totalChargingMin,
+    };
+  });
+
+  return jsonOk({ trips });
+}
 
 export async function POST(request: NextRequest) {
   const auth = validateSession(getAuthHeader(request));

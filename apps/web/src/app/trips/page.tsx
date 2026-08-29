@@ -11,6 +11,7 @@ import { PlaceSearchField, type GeocodeHit } from "@/components/place-search-fie
 import { chargeStopReason } from "@/lib/trip-station-scoring";
 import { getCurrentLocation } from "@/lib/geolocation";
 import { loadRecentDestination, saveRecentDestination } from "@/lib/home-storage";
+import { SavedTripsList } from "@/components/saved-trips-list";
 import { apiFetch, getAuthToken } from "@/lib/utils";
 import type { TripPlan } from "@ev/domain";
 
@@ -54,6 +55,7 @@ export default function TripsPage() {
   const [originLocating, setOriginLocating] = useState(true);
   const [swapStopIndex, setSwapStopIndex] = useState<number | null>(null);
   const planRequestRef = useRef(0);
+  const skipAutoPlanRef = useRef(false);
   const departureSocRef = useRef(departureSoc);
   const reserveSocRef = useRef(reserveSoc);
   departureSocRef.current = departureSoc;
@@ -191,9 +193,42 @@ export default function TripsPage() {
   };
 
   useEffect(() => {
+    if (skipAutoPlanRef.current) {
+      skipAutoPlanRef.current = false;
+      return;
+    }
     if (!destination || !origin || originLocating) return;
     void runPlan(origin, destination);
   }, [origin?.lat, origin?.lon, destination?.lat, destination?.lon, originLocating, destination, origin, runPlan]);
+
+  const loadSavedTrip = async (tripId: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await apiFetch<{ plan: TripPlan }>(`/api/trips/${tripId}`);
+      skipAutoPlanRef.current = true;
+      setOrigin({
+        lat: data.plan.origin.lat,
+        lon: data.plan.origin.lon,
+        label: data.plan.origin.label,
+      });
+      setDestination({
+        lat: data.plan.destination.lat,
+        lon: data.plan.destination.lon,
+        label: data.plan.destination.label,
+      });
+      setReserveSoc(String(data.plan.reserveSocPct));
+      setPlan(data.plan);
+      setPlanOptions([data.plan]);
+      setSelectedPlanIndex(0);
+      setSwapStopIndex(null);
+    } catch (e) {
+      const err = e as { message?: string };
+      setError(err.message || "Could not load saved trip.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -205,6 +240,8 @@ export default function TripsPage() {
             : "Where do you want to go?"}
         </p>
       </div>
+
+      <SavedTripsList onSelect={(id) => void loadSavedTrip(id)} />
 
       <Card className="space-y-5">
         <PlaceSearchField

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Battery, History, MapPin, Route, LogOut } from "lucide-react";
+import { Battery, History, MapPin, Route, LogOut, Settings } from "lucide-react";
 import { cn, clearAuthToken } from "@/lib/utils";
 
 const nav = [
@@ -29,16 +29,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
             <span className="text-lg font-semibold tracking-tight">EV Companion</span>
           </div>
-          <button
-            onClick={() => {
-              clearAuthToken();
-              window.location.href = "/auth";
-            }}
-            className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-            aria-label="Sign out"
-          >
-            <LogOut className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <Link
+              href="/settings"
+              className={cn(
+                "flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200",
+                pathname === "/settings" && "bg-slate-800 text-emerald-400"
+              )}
+              aria-label="Settings"
+              aria-current={pathname === "/settings" ? "page" : undefined}
+            >
+              <Settings className="h-5 w-5" />
+            </Link>
+            <button
+              onClick={() => {
+                clearAuthToken();
+                window.location.href = "/auth";
+              }}
+              className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+              aria-label="Sign out"
+            >
+              <LogOut className="h-5 w-5" />
+            </button>
+          </div>
         </div>
       </header>
 

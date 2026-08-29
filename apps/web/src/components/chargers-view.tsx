@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import type { ChargingStation, ConnectorStandard } from "@ev/domain";
 import { DirectionsButton } from "@/components/directions-button";
 import { FitsYourCarBadge, NoMatchBadge } from "@/components/fits-your-car-badge";
@@ -20,6 +21,18 @@ import {
 import { StaleDataBanner } from "@/components/stale-data-banner";
 import { PlaceSearchField, type GeocodeHit } from "@/components/place-search-field";
 import { getReachabilityCache, stationsWithDistance } from "@/lib/reachability-client";
+
+const ChargerMap = dynamic(
+  () => import("@/components/charger-map").then((m) => m.ChargerMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-[400px] items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-slate-400">
+        Loading map…
+      </div>
+    ),
+  }
+);
 
 interface ChargersViewProps {
   initialLat?: number;
@@ -49,6 +62,7 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
   const [vehicleConnectors, setVehicleConnectors] = useState<ConnectorStandard[]>([]);
   const [vehicleLabel, setVehicleLabel] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [locating, setLocating] = useState(false);
 
   const sortedStations = useMemo(
     () =>
@@ -84,6 +98,24 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
       return;
     }
     void search(center.lat, center.lon);
+  };
+
+  const handleLocateMe = () => {
+    if (!navigator.geolocation) return;
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const point = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+        setUserLocation(point);
+        setCenter(point);
+        setSearchPlace({ lat: point.lat, lon: point.lon, label: "Current location" });
+        setSelected(null);
+        void search(point.lat, point.lon);
+        setLocating(false);
+      },
+      () => setLocating(false),
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
   };
 
   const applyCachedResults = (lat: number, lon: number) => {
@@ -290,6 +322,18 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
         <p className="rounded-xl bg-red-900/30 px-4 py-3 text-sm text-red-200" role="alert">
           {error}
         </p>
+      )}
+
+      {!loading && (
+        <ChargerMap
+          center={center}
+          userLocation={userLocation}
+          stations={sortedStations}
+          selected={selected}
+          onSelect={setSelected}
+          onLocateMe={handleLocateMe}
+          locating={locating}
+        />
       )}
 
       {loading ? (
