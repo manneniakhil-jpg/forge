@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
   <rect width="32" height="32" rx="8" fill="#041018"/>
-  <path d="M6 19 L8.5 16.5 Q10.5 15 13 15 H16.5 L19.5 12.5 L18.5 15.5 H21 L19 18 L16.5 17 H13 Q10.5 17 8.5 18.5 Z" fill="url(#favMark)"/>
-  <circle cx="11" cy="19.5" r="1.4" fill="#041018" stroke="url(#favMark)" stroke-width="1"/>
-  <circle cx="17.5" cy="19.5" r="1.4" fill="#041018" stroke="url(#favMark)" stroke-width="1"/>
+  <path d="M16 5.5 C12.1 5.5 9.5 8.8 9.5 12.8 C9.5 17.3 16 25.5 16 25.5 C16 25.5 22.5 17.3 22.5 12.8 C22.5 8.8 19.9 5.5 16 5.5 Z" fill="url(#favMark)"/>
+  <path d="M16 8.5 L14 14.5 H16.5 L15 19 L18.5 13 H16.5 L18 8.5 Z" fill="#041018"/>
+  <path d="M16 22 L13.5 19.5 L18.5 19.5 Z" fill="#041018" opacity="0.85"/>
   <defs>
-    <linearGradient id="favMark" x1="6" y1="12.5" x2="21" y2="19.5" gradientUnits="userSpaceOnUse">
+    <linearGradient id="favMark" x1="9.5" y1="5.5" x2="22.5" y2="25.5" gradientUnits="userSpaceOnUse">
       <stop stop-color="#00e5ff"/>
       <stop offset="0.6" stop-color="#39ff14"/>
       <stop offset="1" stop-color="#ffe566"/>
