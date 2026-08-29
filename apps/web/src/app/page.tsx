@@ -14,9 +14,11 @@ import { loadRecentDestination, type SavedPlace } from "@/lib/home-storage";
 import {
   formatNearbyCharger,
   pickFavoriteStations,
+  reachCheckToPlace,
   weeklySummary,
   type FavoriteStationGlance,
   type NearbyFastCharger,
+  type ReachCheck,
 } from "@/lib/home-insights";
 import {
   formatAgeMinutes,
@@ -45,6 +47,8 @@ interface HomeData {
 type ChargerStation = {
   id: string;
   operatorName: string;
+  latitude: number;
+  longitude: number;
   distanceKm: number;
   connectors: Array<{
     maxPowerKw: number;
@@ -82,6 +86,8 @@ export default function HomePage() {
   const [favorites, setFavorites] = useState<FavoriteStationGlance[]>([]);
   const [nearbyLoading, setNearbyLoading] = useState(false);
   const [recentDestination, setRecentDestination] = useState<SavedPlace | null>(null);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
+  const [reachCheck, setReachCheck] = useState<ReachCheck | null>(null);
 
   const loadVehicleState = (vehicleId: string, failed: boolean, incoming: VehicleState | null) => {
     const cache = loadCache();
@@ -100,11 +106,31 @@ export default function HomePage() {
 
   const loadChargingContext = async (
     vehicle: NonNullable<HomeData["activeVehicle"]>,
-    distanceUnit: "km" | "mi"
+    distanceUnit: "km" | "mi",
+    socPct: number | null | undefined,
+    reserveSocPct: number
   ) => {
     setNearbyLoading(true);
     try {
       const point = await getCurrentLocation();
+      setUserLocation(point);
+      const recent = loadRecentDestination();
+      if (recent && socPct != null) {
+        setReachCheck(
+          reachCheckToPlace(
+            point,
+            recent,
+            socPct,
+            vehicle.batteryKwh,
+            vehicle.efficiencyWhKm,
+            reserveSocPct,
+            distanceUnit
+          )
+        );
+      } else {
+        setReachCheck(null);
+      }
+
       const chargers = await apiFetch<{
         stations: ChargerStation[];
         favorites: string[];
@@ -142,17 +168,21 @@ export default function HomePage() {
       const me = await apiFetch<HomeData>("/api/me");
       setData(me);
 
+      let latestSoc: number | null | undefined = null;
+
       const vehicleTask = me.activeVehicle
         ? (async () => {
             const cached = loadCache().vehicleStates[me.activeVehicle!.id];
             if (cached) {
               const { cachedAt: _, ...cachedState } = cached;
+              latestSoc = cachedState.socPct;
               setState({ ...cachedState, stale: true, fromCache: true });
             }
             try {
               const vs = await apiFetch<{ state: VehicleState }>(
                 `/api/vehicles/${me.activeVehicle!.id}`
               );
+              latestSoc = vs.state.socPct;
               loadVehicleState(me.activeVehicle!.id, false, vs.state);
               setRefreshFailed(false);
             } catch {
@@ -197,7 +227,12 @@ export default function HomePage() {
       await Promise.all([vehicleTask, sessionTask, historyTask]);
 
       if (me.activeVehicle) {
-        void loadChargingContext(me.activeVehicle, me.account.distanceUnit);
+        await loadChargingContext(
+          me.activeVehicle,
+          me.account.distanceUnit,
+          latestSoc,
+          me.account.reserveSoc ?? 10
+        );
       }
     } catch {
       router.replace("/auth");
@@ -380,7 +415,8 @@ export default function HomePage() {
         nearbyFast={nearbyFast}
         nearbyLoading={nearbyLoading}
         favorites={favorites}
-        recentDestination={recentDestination}
+        reachCheck={reachCheck}
+        userLocation={userLocation}
         isCharging={Boolean(session)}
       />
     </div>

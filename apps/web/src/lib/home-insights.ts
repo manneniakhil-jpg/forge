@@ -1,4 +1,11 @@
-import { computeUsableRangeKm, convertDistance, estimateChargeDurationMin, type ConnectorStandard } from "@ev/domain";
+import {
+  computeUsableRangeKm,
+  convertDistance,
+  estimateChargeDurationMin,
+  haversineKm,
+  type ConnectorStandard,
+} from "@ev/domain";
+import type { SavedPlace } from "./home-storage";
 
 export type DayTripIdea = {
   name: string;
@@ -109,9 +116,64 @@ export function chargeToTargetInsight(
   };
 }
 
+export type ReachCheck = {
+  destinationLabel: string;
+  distanceKm: number;
+  usableKm: number;
+  needsChargeStop: boolean;
+  headline: string;
+  detail: string;
+};
+
+/** Straight-line sanity check — full trip planner handles roads and charge stops. */
+export function reachCheckToPlace(
+  origin: { lat: number; lon: number },
+  destination: SavedPlace,
+  socPct: number,
+  batteryKwh: number,
+  efficiencyWhKm: number,
+  reserveSocPct: number,
+  distanceUnit: "km" | "mi"
+): ReachCheck {
+  const distanceKm = haversineKm(origin.lat, origin.lon, destination.lat, destination.lon);
+  const usableKm = computeUsableRangeKm(
+    socPct,
+    reserveSocPct,
+    batteryKwh,
+    efficiencyWhKm
+  );
+  const label = destination.label.split(",").slice(0, 2).join(",").trim();
+  const distDisplay = Math.round(convertDistance(distanceKm, distanceUnit));
+  const usableDisplay = Math.round(convertDistance(usableKm, distanceUnit));
+  const unit = distanceUnit;
+  const needsChargeStop = distanceKm > usableKm * 0.92;
+
+  if (!needsChargeStop) {
+    return {
+      destinationLabel: label,
+      distanceKm,
+      usableKm,
+      needsChargeStop: false,
+      headline: `You can likely reach ${label}`,
+      detail: `~${distDisplay} ${unit} away · ${usableDisplay} ${unit} comfortable range at ${socPct}%.`,
+    };
+  }
+
+  return {
+    destinationLabel: label,
+    distanceKm,
+    usableKm,
+    needsChargeStop: true,
+    headline: `${label} needs a charge stop`,
+    detail: `~${distDisplay} ${unit} away exceeds your ~${usableDisplay} ${unit} range — plan a route with stops.`,
+  };
+}
+
 export type FavoriteStationGlance = {
   id: string;
   name: string;
+  latitude: number;
+  longitude: number;
   distanceKm: number;
   maxPowerKw: number;
   availability: string;
@@ -122,6 +184,8 @@ export function pickFavoriteStations(
   stations: Array<{
     id: string;
     operatorName: string;
+    latitude: number;
+    longitude: number;
     distanceKm: number;
     connectors: Array<{ maxPowerKw: number; availability: string; standard: ConnectorStandard }>;
   }>,
@@ -140,6 +204,8 @@ export function pickFavoriteStations(
       return {
         id: station.id,
         name: formatted.name,
+        latitude: station.latitude,
+        longitude: station.longitude,
         distanceKm: formatted.distanceKm,
         maxPowerKw: formatted.maxPowerKw,
         availability: formatted.availability,
@@ -153,6 +219,8 @@ export function pickFavoriteStations(
 
 export type NearbyFastCharger = {
   name: string;
+  latitude: number;
+  longitude: number;
   distanceKm: number;
   maxPowerKw: number;
   availability: string;
@@ -162,6 +230,8 @@ export type NearbyFastCharger = {
 export function formatNearbyCharger(
   station: {
     operatorName: string;
+    latitude: number;
+    longitude: number;
     distanceKm: number;
     connectors: Array<{ maxPowerKw: number; availability: string; standard: ConnectorStandard }>;
   },
@@ -184,6 +254,8 @@ export function formatNearbyCharger(
 
   return {
     name: station.operatorName,
+    latitude: station.latitude,
+    longitude: station.longitude,
     distanceKm: station.distanceKm,
     maxPowerKw,
     availability,
