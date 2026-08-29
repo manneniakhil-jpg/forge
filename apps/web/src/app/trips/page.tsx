@@ -135,11 +135,15 @@ export default function TripsPage() {
         if (err.code === "NO_VIABLE_ROUTE") {
           if (err.fields?.reason === "no_chargers_on_route") {
             setError(
-              "No compatible chargers found along this route yet. Try a route within California, or a shorter distance."
+              "No compatible chargers found along this route. Try a shorter trip, a different corridor, or check that your vehicle connector type matches stations in the area."
+            );
+          } else if (err.fields?.longestLegKm && err.fields?.usableRangeKm) {
+            setError(
+              `A ${err.fields.longestLegKm} km section exceeds your ~${err.fields.usableRangeKm} km range at ${departureSoc}% charge. Raise your current charge, lower reserve, or choose a closer destination.`
             );
           } else {
             setError(
-              "This trip exceeds your range even with charging stops. Try a closer destination, a different start point, or more charge."
+              "Could not plan this trip with enough charging stops. Try a closer destination, a different start point, or more charge before you leave."
             );
           }
         } else if (err.code === "ROUTING_UNAVAILABLE") {

@@ -213,6 +213,32 @@ export function getStationById(stationId: string): ChargingStation | null {
   return loadStation(stationId);
 }
 
+function stationNearCorridor(
+  station: { latitude: number; longitude: number },
+  points: Array<{ lat: number; lon: number }>,
+  corridorKm: number
+): boolean {
+  let minDist = Infinity;
+  for (const pt of points) {
+    const d = haversineKm(pt.lat, pt.lon, station.latitude, station.longitude);
+    if (d < minDist) minDist = d;
+  }
+  return minDist <= corridorKm;
+}
+
+function pickCorridorSamplePoints(
+  points: Array<{ lat: number; lon: number }>,
+  maxSamples: number
+): Array<{ lat: number; lon: number }> {
+  if (points.length <= maxSamples) return points;
+  const picked: Array<{ lat: number; lon: number }> = [];
+  for (let i = 0; i < maxSamples; i++) {
+    const idx = Math.round((i * (points.length - 1)) / (maxSamples - 1));
+    picked.push(points[idx]);
+  }
+  return picked;
+}
+
 export function queryCorridor(
   points: Array<{ lat: number; lon: number }>,
   connectorStandards: ConnectorStandard[],
@@ -247,6 +273,61 @@ export function queryCorridor(
     if (hasMatching) {
       seen.add(station.id);
       results.push(station);
+    }
+  }
+
+  return results;
+}
+
+export async function queryCorridorAsync(
+  points: Array<{ lat: number; lon: number }>,
+  connectorStandards: ConnectorStandard[],
+  corridorKm = 30,
+  seedNear?: { lat: number; lon: number }
+): Promise<ChargingStation[]> {
+  let results = queryCorridor(points, connectorStandards, corridorKm);
+  const seen = new Set(results.map((s) => s.id));
+
+  if (isGooglePlacesConfigured() && points.length > 0) {
+    const samples = pickCorridorSamplePoints(points, 6);
+    const searchRadiusKm = Math.min(corridorKm, 50);
+
+    for (const sample of samples) {
+      for (const standard of connectorStandards) {
+        try {
+          const googleStations = await fetchNearbyEvStations({
+            lat: sample.lat,
+            lon: sample.lon,
+            radiusKm: searchRadiusKm,
+            connectorStandard: standard,
+          });
+          for (const station of googleStations) {
+            if (seen.has(station.id)) continue;
+            if (!stationNearCorridor(station, points, corridorKm)) continue;
+            const hasMatching = station.connectors.some(
+              (c) =>
+                connectorStandards.includes(c.standard) &&
+                (c.availability === "Available" || c.availability === "Unknown")
+            );
+            if (!hasMatching) continue;
+            seen.add(station.id);
+            results.push(station);
+          }
+        } catch (error) {
+          console.error("[chargers] Google corridor search failed:", error);
+        }
+      }
+    }
+  }
+
+  if (results.length === 0) {
+    const seedPoint = seedNear ?? points[points.length - 1] ?? points[0];
+    if (seedPoint) {
+      const db = getDb();
+      const added = seedStationsNearPoint(db, seedPoint.lat, seedPoint.lon);
+      if (added) {
+        results = queryCorridor(points, connectorStandards, corridorKm);
+      }
     }
   }
 
@@ -292,6 +373,21 @@ export function findNearestCompatibleStation(
   maxDistanceKm: number
 ): { station: ChargingStation; distanceKm: number } | null {
   const candidates = queryCorridor([point], connectorStandards, maxDistanceKm)
+    .map((station) => ({
+      station,
+      distanceKm: haversineKm(point.lat, point.lon, station.latitude, station.longitude),
+    }))
+    .sort((a, b) => a.distanceKm - b.distanceKm);
+
+  return candidates[0] ?? null;
+}
+
+export async function findNearestCompatibleStationAsync(
+  point: { lat: number; lon: number },
+  connectorStandards: ConnectorStandard[],
+  maxDistanceKm: number
+): Promise<{ station: ChargingStation; distanceKm: number } | null> {
+  const candidates = (await queryCorridorAsync([point], connectorStandards, maxDistanceKm, point))
     .map((station) => ({
       station,
       distanceKm: haversineKm(point.lat, point.lon, station.latitude, station.longitude),

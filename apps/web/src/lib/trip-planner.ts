@@ -7,7 +7,11 @@ import {
   type ConnectorStandard,
   type TripPlan,
 } from "@ev/domain";
-import { findNearestCompatibleStation, queryCorridor, sampleRoutePoints } from "./chargers";
+import {
+  findNearestCompatibleStationAsync,
+  queryCorridorAsync,
+  sampleRoutePoints,
+} from "./chargers";
 import {
   bestCompatibleConnector,
   pickBestStation,
@@ -46,11 +50,45 @@ interface TripInput {
   connectorStandards: ConnectorStandard[];
 }
 
+function maxComfortLegKm(input: TripInput): number {
+  return (
+    computeUsableRangeKm(
+      80,
+      input.reserveSocPct,
+      input.batteryKwh,
+      input.efficiencyWhKm
+    ) * 0.85
+  );
+}
+
+function socNeededForDistanceKm(input: TripInput, distanceKm: number): number {
+  return (
+    input.reserveSocPct +
+    (distanceKm * input.efficiencyWhKm) / ((input.batteryKwh * 1000) / 100)
+  );
+}
+
+function targetDepartureSoc(
+  arrivalSoc: number,
+  remainingDistanceKm: number,
+  input: TripInput
+): number {
+  const maxLegKm = maxComfortLegKm(input);
+
+  if (remainingDistanceKm > maxLegKm) {
+    return 80;
+  }
+
+  const needed = socNeededForDistanceKm(input, remainingDistanceKm) + 5;
+  return Math.min(100, Math.max(arrivalSoc + 10, Math.ceil(needed)));
+}
+
 export async function planTrip(
   input: TripInput
 ): Promise<TripPlan | { error: string; details?: Record<string, unknown> }> {
   const chargeStops: ChargeStop[] = [];
   const routeSegments: Array<Array<{ lat: number; lon: number }>> = [];
+  const visitedStationIds = new Set<string>();
   let currentPos = input.origin;
   let currentSoc = input.departureSocPct;
   let totalDistanceKm = 0;
@@ -84,16 +122,14 @@ export async function planTrip(
         input.batteryKwh,
         input.efficiencyWhKm
       );
-      if (destSoc < input.reserveSocPct) {
-        return {
-          error: "NO_VIABLE_ROUTE",
-          details: {
-            longestLegKm: Math.round(route.distanceKm),
-            usableRangeKm: Math.round(usableRange),
-          },
-        };
-      }
-      return buildPlan(input, chargeStops, totalDistanceKm, totalDrivingMin, destSoc, routeSegments);
+      return buildPlan(
+        input,
+        chargeStops,
+        totalDistanceKm,
+        totalDrivingMin,
+        Math.max(input.reserveSocPct, destSoc),
+        routeSegments
+      );
     }
 
     if (attempt >= maxStops) {
@@ -102,6 +138,7 @@ export async function planTrip(
         details: {
           longestLegKm: Math.round(route.distanceKm),
           usableRangeKm: Math.round(usableRange),
+          reason: "max_stops_exceeded",
         },
       };
     }
@@ -120,12 +157,21 @@ export async function planTrip(
       input.reserveSocPct,
       socAfterDistance(currentSoc, legDist, input.batteryKwh, input.efficiencyWhKm)
     );
+    const remainingDistanceKm = Math.max(0, route.distanceKm - driveBeforeChargeKm);
 
-    let nearest: { station: import("@ev/domain").ChargingStation; distanceKm: number } | null = null;
+    let nearest: { station: import("@ev/domain").ChargingStation; distanceKm: number } | null =
+      null;
 
     for (const radius of [50, 90, 150]) {
-      const alongRoute = queryCorridor(routeSamples, input.connectorStandards, radius).map(
-        (station) => ({
+      const maxDetourKm = Math.min(radius, 55);
+      const alongRoute = (await queryCorridorAsync(
+        routeSamples,
+        input.connectorStandards,
+        radius,
+        needChargeAt
+      ))
+        .filter((station) => !visitedStationIds.has(station.id))
+        .map((station) => ({
           station,
           distanceKm: haversineKm(
             needChargeAt.lat,
@@ -133,8 +179,8 @@ export async function planTrip(
             station.latitude,
             station.longitude
           ),
-        })
-      );
+        }))
+        .filter((candidate) => candidate.distanceKm <= maxDetourKm);
       if (alongRoute.length > 0) {
         nearest = pickBestStation(
           alongRoute,
@@ -145,12 +191,12 @@ export async function planTrip(
         );
         break;
       }
-      const fallback = findNearestCompatibleStation(
+      const fallback = await findNearestCompatibleStationAsync(
         needChargeAt,
         input.connectorStandards,
         radius
       );
-      if (fallback) {
+      if (fallback && !visitedStationIds.has(fallback.station.id)) {
         nearest = pickBestStation(
           [fallback],
           needChargeAt,
@@ -174,7 +220,8 @@ export async function planTrip(
     }
 
     const chosenStation = nearest.station;
-    const departureSoc = Math.min(80, Math.max(arrivalSoc + 25, input.reserveSocPct + 15));
+    visitedStationIds.add(chosenStation.id);
+    const departureSoc = targetDepartureSoc(arrivalSoc, remainingDistanceKm, input);
     const connector = bestCompatibleConnector(chosenStation, input.connectorStandards);
     const maxPower = connector?.maxPowerKw ?? Math.max(...chosenStation.connectors.map((c) => c.maxPowerKw));
 
@@ -205,7 +252,10 @@ export async function planTrip(
     currentSoc = departureSoc;
   }
 
-  return { error: "NO_VIABLE_ROUTE" };
+  return {
+    error: "NO_VIABLE_ROUTE",
+    details: { reason: "planning_exhausted" },
+  };
 }
 
 function buildPlan(
