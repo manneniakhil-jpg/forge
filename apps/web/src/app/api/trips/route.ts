@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
-import { validateReserveSoc, type TripPlan } from "@ev/domain";
+import { validateReserveSoc, type ConnectorStandard, type TripPlan } from "@ev/domain";
 import { validateSession, getAccount } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { planTrip, planTripAlternatives } from "@/lib/trip-planner";
 import { apiError, getAuthHeader, jsonOk } from "@/lib/api-helpers";
-import type { ConnectorStandard } from "@ev/domain";
+import { resolveVehicleKind } from "@/lib/vehicle-kind";
 
 export async function GET(request: NextRequest) {
   const auth = validateSession(getAuthHeader(request));
@@ -76,6 +76,11 @@ export async function POST(request: NextRequest) {
     batteryKwh: vehicle.battery_kwh as number,
     efficiencyWhKm: vehicle.efficiency_wh_km as number,
     connectorStandards: JSON.parse(vehicle.connector_standards as string) as ConnectorStandard[],
+    vehicleKind: resolveVehicleKind({
+      vehicleKind: vehicle.vehicle_kind as string | undefined,
+      batteryKwh: vehicle.battery_kwh as number,
+      efficiencyWhKm: vehicle.efficiency_wh_km as number,
+    }),
   };
 
   const wantAlternatives = Math.min(3, Math.max(1, parseInt(String(altCount ?? 1), 10) || 1));

@@ -5,6 +5,7 @@ import {
   type ChargeStop,
   type ConnectorStandard,
   type TripPlan,
+  type VehicleKind,
 } from "@ev/domain";
 import {
   getStationById,
@@ -46,6 +47,7 @@ export interface TripInput {
   batteryKwh: number;
   efficiencyWhKm: number;
   connectorStandards: ConnectorStandard[];
+  vehicleKind?: VehicleKind;
 }
 
 interface PlannerState {
@@ -229,6 +231,7 @@ async function continuePlanning(
           longestLegKm: Math.round(driveBeforeChargeKm),
           usableRangeKm: Math.round(usableRange),
           reason: "no_chargers_on_route",
+          connectorStandards: input.connectorStandards.join(", "),
         },
       };
     }
@@ -255,6 +258,52 @@ async function continuePlanning(
   }
 
   return { error: "NO_VIABLE_ROUTE", details: { reason: "planning_exhausted" } };
+}
+
+async function planBikeTrip(
+  input: TripInput
+): Promise<TripPlan | { error: string; details?: Record<string, unknown> }> {
+  const route = await fetchRoadRoute(input.origin, input.destination);
+  if ("error" in route) {
+    return { error: route.error };
+  }
+
+  const usableRange = computeUsableRangeKm(
+    input.departureSocPct,
+    input.reserveSocPct,
+    input.batteryKwh,
+    input.efficiencyWhKm
+  );
+
+  if (route.distanceKm > usableRange) {
+    return {
+      error: "NO_VIABLE_ROUTE",
+      details: {
+        reason: "bike_out_of_range",
+        longestLegKm: Math.round(route.distanceKm * 10) / 10,
+        usableRangeKm: Math.round(usableRange * 10) / 10,
+      },
+    };
+  }
+
+  const destSoc = socAfterDistance(
+    input.departureSocPct,
+    route.distanceKm,
+    input.batteryKwh,
+    input.efficiencyWhKm
+  );
+
+  const state: PlannerState = {
+    chargeStops: [],
+    routeSegments: [route.coordinates],
+    visitedStationIds: new Set<string>(),
+    currentPos: input.origin,
+    currentSoc: input.departureSocPct,
+    totalDistanceKm: route.distanceKm,
+    totalDrivingMin: route.durationMin,
+  };
+
+  return buildPlan(input, state, Math.max(input.reserveSocPct, destSoc));
 }
 
 async function replanWithPrefixStops(
@@ -333,6 +382,9 @@ async function replanWithPrefixStops(
 export async function planTrip(
   input: TripInput
 ): Promise<TripPlan | { error: string; details?: Record<string, unknown> }> {
+  if (input.vehicleKind === "bike") {
+    return planBikeTrip(input);
+  }
   return planTripExcluding(input, []);
 }
 
@@ -361,6 +413,10 @@ export async function planTripAlternatives(
   input: TripInput,
   maxAlternatives = 3
 ): Promise<TripPlan[]> {
+  if (input.vehicleKind === "bike") {
+    const single = await planBikeTrip(input);
+    return "error" in single ? [] : [single];
+  }
   const cap = Math.min(3, Math.max(1, maxAlternatives));
   const plans: TripPlan[] = [];
   const seen = new Set<string>();

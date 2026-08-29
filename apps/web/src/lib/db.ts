@@ -161,4 +161,31 @@ function migrateSchema(database: Database.Database) {
   if (!vehicleCols.some((c) => c.name === "vehicle_kind")) {
     database.exec(`ALTER TABLE vehicles ADD COLUMN vehicle_kind TEXT NOT NULL DEFAULT 'car'`);
   }
+  migrateType2Connectors(database);
+}
+
+function migrateType2Connectors(database: Database.Database) {
+  const stations = database
+    .prepare(
+      `SELECT cs.id, cs.network_id
+       FROM charging_stations cs
+       WHERE cs.network_id IN ('chargepoint', 'ev_connect', 'volta')
+         AND NOT EXISTS (
+           SELECT 1 FROM connectors c WHERE c.station_id = cs.id AND c.standard = 'Type2'
+         )`
+    )
+    .all() as Array<{ id: string; network_id: string }>;
+
+  if (stations.length === 0) return;
+
+  const insert = database.prepare(`
+    INSERT INTO connectors (id, station_id, standard, max_power_kw, availability, price_per_kwh, currency)
+    VALUES (?, ?, 'Type2', 7.2, 'Available', ?, 'USD')
+  `);
+
+  for (const station of stations) {
+    const price =
+      station.network_id === "volta" ? 0 : station.network_id === "ev_connect" ? 0.32 : 0.28;
+    insert.run(`${station.id}_type2`, station.id, price);
+  }
 }

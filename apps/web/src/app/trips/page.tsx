@@ -152,9 +152,16 @@ export default function TripsPage() {
         if (requestId !== planRequestRef.current) return;
         const err = e as { message?: string; code?: string; fields?: Record<string, string> };
         if (err.code === "NO_VIABLE_ROUTE") {
-          if (err.fields?.reason === "no_chargers_on_route") {
+          if (err.fields?.reason === "bike_out_of_range") {
             setError(
-              "No compatible chargers found along this route. Try a shorter trip, a different corridor, or check that your vehicle connector type matches stations in the area."
+              `This trip is about ${err.fields.longestLegKm} km but your e-bike can go ~${err.fields.usableRangeKm} km on your current charge. Pick a closer destination, raise your charge level, or switch to a car in Settings for road-trip planning.`
+            );
+          } else if (err.fields?.reason === "no_chargers_on_route") {
+            const connectors = err.fields.connectorStandards;
+            setError(
+              connectors
+                ? `No chargers along this route match your connectors (${connectors}). Try a different corridor or switch your active vehicle in Settings.`
+                : "No compatible chargers found along this route. Try a shorter trip, a different corridor, or check that your vehicle connector type matches stations in the area."
             );
           } else if (err.fields?.longestLegKm && err.fields?.usableRangeKm) {
             setError(

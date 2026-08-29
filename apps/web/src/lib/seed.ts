@@ -44,13 +44,13 @@ type SeedStation = {
 
 const SF_CHARGERS: SeedStation[] = [
   { name: "Electrify America", lat: 37.7849, lon: -122.4094, network: "electrify_america", connectors: [{ standard: "CCS", power: 350, price: 0.48 }, { standard: "NACS", power: 250, price: 0.48 }] },
-  { name: "ChargePoint", lat: 37.7955, lon: -122.3937, network: "chargepoint", connectors: [{ standard: "CCS", power: 150, price: 0.35 }] },
+  { name: "ChargePoint", lat: 37.7955, lon: -122.3937, network: "chargepoint", connectors: [{ standard: "CCS", power: 150, price: 0.35 }, { standard: "Type2", power: 7.2, price: 0.28 }] },
   { name: "EVgo", lat: 37.7694, lon: -122.4148, network: "evgo", connectors: [{ standard: "CCS", power: 100, price: 0.42 }, { standard: "NACS", power: 250, price: 0.42 }] },
   { name: "Tesla Supercharger", lat: 37.7879, lon: -122.4075, network: "tesla", connectors: [{ standard: "NACS", power: 250, price: 0.32 }] },
   { name: "Electrify America", lat: 37.7599, lon: -122.4148, network: "electrify_america", connectors: [{ standard: "CCS", power: 150, price: 0.48 }, { standard: "NACS", power: 250, price: 0.48 }] },
-  { name: "ChargePoint", lat: 37.8024, lon: -122.4058, network: "chargepoint", connectors: [{ standard: "CCS", power: 62, price: 0.30 }] },
-  { name: "EV Connect", lat: 37.7749, lon: -122.4194, network: "ev_connect", connectors: [{ standard: "CCS", power: 50, price: 0.38 }] },
-  { name: "Volta", lat: 37.7900, lon: -122.4000, network: "volta", connectors: [{ standard: "CCS", power: 50, price: 0.00 }] },
+  { name: "ChargePoint", lat: 37.8024, lon: -122.4058, network: "chargepoint", connectors: [{ standard: "CCS", power: 62, price: 0.30 }, { standard: "Type2", power: 7.2, price: 0.28 }] },
+  { name: "EV Connect", lat: 37.7749, lon: -122.4194, network: "ev_connect", connectors: [{ standard: "CCS", power: 50, price: 0.38 }, { standard: "Type2", power: 7.2, price: 0.32 }] },
+  { name: "Volta", lat: 37.7900, lon: -122.4000, network: "volta", connectors: [{ standard: "CCS", power: 50, price: 0.00 }, { standard: "Type2", power: 7.2, price: 0.00 }] },
   { name: "Tesla Supercharger", lat: 37.7400, lon: -122.4500, network: "tesla", connectors: [{ standard: "NACS", power: 250, price: 0.32 }] },
   { name: "Shell Recharge", lat: 37.7300, lon: -122.3900, network: "shell", connectors: [{ standard: "CCS", power: 150, price: 0.40 }, { standard: "NACS", power: 150, price: 0.40 }] },
 ];
@@ -58,7 +58,7 @@ const SF_CHARGERS: SeedStation[] = [
 /** Stations along major CA driving corridors (I-5, US-101, I-80) for trip planning */
 const CORRIDOR_CHARGERS: SeedStation[] = [
   { name: "Electrify America — Sacramento", lat: 38.5816, lon: -121.4944, network: "electrify_america", connectors: [{ standard: "CCS", power: 350, price: 0.48 }, { standard: "NACS", power: 250, price: 0.48 }] },
-  { name: "ChargePoint — Vallejo", lat: 38.1041, lon: -122.2566, network: "chargepoint", connectors: [{ standard: "CCS", power: 125, price: 0.35 }, { standard: "NACS", power: 150, price: 0.35 }] },
+  { name: "ChargePoint — Vallejo", lat: 38.1041, lon: -122.2566, network: "chargepoint", connectors: [{ standard: "CCS", power: 125, price: 0.35 }, { standard: "NACS", power: 150, price: 0.35 }, { standard: "Type2", power: 7.2, price: 0.28 }] },
   { name: "Tesla Supercharger — Gilroy", lat: 37.0058, lon: -121.5683, network: "tesla", connectors: [{ standard: "NACS", power: 250, price: 0.32 }] },
   { name: "Electrify America — Coalinga", lat: 36.1397, lon: -120.3601, network: "electrify_america", connectors: [{ standard: "CCS", power: 350, price: 0.48 }, { standard: "NACS", power: 250, price: 0.48 }] },
   { name: "Electrify America — Kettleman City", lat: 36.0080, lon: -119.9618, network: "electrify_america", connectors: [{ standard: "CCS", power: 350, price: 0.48 }, { standard: "NACS", power: 250, price: 0.48 }] },
@@ -68,10 +68,10 @@ const CORRIDOR_CHARGERS: SeedStation[] = [
   { name: "Electrify America — Santa Clarita", lat: 34.3917, lon: -118.5426, network: "electrify_america", connectors: [{ standard: "CCS", power: 350, price: 0.48 }, { standard: "NACS", power: 250, price: 0.48 }] },
   { name: "Electrify America — Los Angeles", lat: 34.0522, lon: -118.2437, network: "electrify_america", connectors: [{ standard: "CCS", power: 350, price: 0.48 }, { standard: "NACS", power: 250, price: 0.48 }] },
   { name: "EVgo — San Diego", lat: 32.7157, lon: -117.1611, network: "evgo", connectors: [{ standard: "CCS", power: 100, price: 0.42 }, { standard: "NACS", power: 200, price: 0.42 }] },
-  { name: "ChargePoint — Monterey", lat: 36.6002, lon: -121.8947, network: "chargepoint", connectors: [{ standard: "CCS", power: 125, price: 0.35 }, { standard: "NACS", power: 150, price: 0.35 }] },
+  { name: "ChargePoint — Monterey", lat: 36.6002, lon: -121.8947, network: "chargepoint", connectors: [{ standard: "CCS", power: 125, price: 0.35 }, { standard: "NACS", power: 150, price: 0.35 }, { standard: "Type2", power: 7.2, price: 0.28 }] },
   { name: "Electrify America — San Luis Obispo", lat: 35.2828, lon: -120.6596, network: "electrify_america", connectors: [{ standard: "CCS", power: 150, price: 0.48 }, { standard: "NACS", power: 250, price: 0.48 }] },
   { name: "Tesla Supercharger — Stockton", lat: 37.9577, lon: -121.2908, network: "tesla", connectors: [{ standard: "NACS", power: 250, price: 0.32 }] },
-  { name: "ChargePoint — Oakland", lat: 37.8044, lon: -122.2712, network: "chargepoint", connectors: [{ standard: "CCS", power: 125, price: 0.35 }, { standard: "NACS", power: 150, price: 0.35 }] },
+  { name: "ChargePoint — Oakland", lat: 37.8044, lon: -122.2712, network: "chargepoint", connectors: [{ standard: "CCS", power: 125, price: 0.35 }, { standard: "NACS", power: 150, price: 0.35 }, { standard: "Type2", power: 7.2, price: 0.28 }] },
 ];
 
 const AVAILABILITY = ["Available", "Available", "Available", "Occupied", "Unknown"] as const;
@@ -157,6 +157,7 @@ const NEARBY_DEMO_STATIONS: Array<{
     connectors: [
       { standard: "CCS", power: 150, price: 0.35 },
       { standard: "NACS", power: 150, price: 0.35 },
+      { standard: "Type2", power: 7.2, price: 0.28 },
     ],
   },
   {
