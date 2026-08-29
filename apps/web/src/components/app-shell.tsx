@@ -21,8 +21,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+      <header className="fixed inset-x-0 top-0 z-[100] border-b border-slate-800 bg-slate-950 shadow-sm shadow-black/20">
+        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600">
               <Battery className="h-5 w-5 text-white" aria-hidden />
@@ -42,10 +42,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-6 pb-28">{children}</main>
+      <main className="mx-auto max-w-5xl px-4 pb-28 pt-20">{children}</main>
 
       <nav
-        className="fixed bottom-0 left-0 right-0 border-t border-slate-800 bg-slate-950/95 backdrop-blur"
+        className="fixed inset-x-0 bottom-0 z-[100] border-t border-slate-800 bg-slate-950 shadow-[0_-4px_24px_rgba(0,0,0,0.35)]"
         aria-label="Main navigation"
       >
         <div className="mx-auto flex max-w-5xl justify-around px-2 py-2">

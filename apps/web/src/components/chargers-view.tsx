@@ -340,7 +340,7 @@ function StationDetail({
   onStartCharge: (connectorId: string) => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end bg-black/60 sm:items-center sm:justify-center">
+    <div className="fixed inset-0 z-[200] flex items-end bg-black/60 sm:items-center sm:justify-center">
       <div className="max-h-[85vh] w-full overflow-y-auto rounded-t-3xl border border-slate-700 bg-slate-900 p-6 sm:max-w-lg sm:rounded-3xl">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">

@@ -147,7 +147,7 @@ export default function TripsPage() {
       </div>
 
       <Card className="space-y-5">
-        <div className="relative z-30">
+        <div className="relative z-10">
           <PlaceSearchField
             id="origin"
             label="From"
@@ -166,7 +166,7 @@ export default function TripsPage() {
           />
         </div>
 
-        <div className="relative z-20">
+        <div className="relative z-0">
           <PlaceSearchField
             id="destination"
             label="To"
