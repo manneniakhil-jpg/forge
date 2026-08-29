@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { validateReserveSoc } from "@ev/domain";
 import { getAccount, validateSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { resolveVehicleKind } from "@/lib/vehicle-kind";
 import { apiError, getAuthHeader, jsonOk } from "@/lib/api-helpers";
 
 const DISTANCE_UNITS = new Set(["km", "mi"]);
@@ -24,7 +25,11 @@ export async function GET(request: NextRequest) {
         make: v.make,
         model: v.model,
         year: v.year,
-        vehicleKind: (v.vehicle_kind as string) ?? "car",
+        vehicleKind: resolveVehicleKind({
+          vehicleKind: v.vehicle_kind as string | undefined,
+          batteryKwh: v.battery_kwh as number,
+          efficiencyWhKm: v.efficiency_wh_km as number,
+        }),
         batteryKwh: v.battery_kwh,
         connectorStandards: JSON.parse(v.connector_standards as string),
         efficiencyWhKm: v.efficiency_wh_km,

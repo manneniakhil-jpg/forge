@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
 import type { ChargingStation, ConnectorStandard, VehicleKind } from "@ev/domain";
 import { DirectionsButton } from "@/components/directions-button";
@@ -21,6 +22,7 @@ import {
 import { StaleDataBanner } from "@/components/stale-data-banner";
 import { PlaceSearchField, type GeocodeHit } from "@/components/place-search-field";
 import { getReachabilityCache, stationsWithDistance } from "@/lib/reachability-client";
+import { resolveVehicleKind } from "@/lib/vehicle-kind";
 
 const ChargerMap = dynamic(
   () => import("@/components/charger-map").then((m) => m.ChargerMap),
@@ -61,9 +63,11 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
   const [sortBy, setSortBy] = useState<ChargerSortMode>("vehicle");
   const [vehicleConnectors, setVehicleConnectors] = useState<ConnectorStandard[]>([]);
   const [vehicleKind, setVehicleKind] = useState<VehicleKind>("car");
+  const [vehicleProfileReady, setVehicleProfileReady] = useState(false);
   const [vehicleLabel, setVehicleLabel] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [locating, setLocating] = useState(false);
+  const pathname = usePathname();
 
   const sortedStations = useMemo(
     () =>
@@ -184,23 +188,47 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
     }
   };
 
-  useEffect(() => {
+  const loadVehicleProfile = useCallback(async () => {
     const token = localStorage.getItem("ev_session_token");
-    if (!token) return;
+    if (!token) {
+      setVehicleProfileReady(true);
+      return;
+    }
+    setVehicleProfileReady(false);
+    try {
+      const data = await fetch("/api/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then((r) => r.json());
 
-    fetch("/api/me", { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.activeVehicle) {
-          setVehicleKind(data.activeVehicle.vehicleKind === "bike" ? "bike" : "car");
-          if (data.activeVehicle.connectorStandards) {
-            setVehicleConnectors(data.activeVehicle.connectorStandards);
-          }
-          setVehicleLabel(`${data.activeVehicle.make} ${data.activeVehicle.model}`);
+      if (data.activeVehicle) {
+        setVehicleKind(resolveVehicleKind(data.activeVehicle));
+        if (data.activeVehicle.connectorStandards) {
+          setVehicleConnectors(data.activeVehicle.connectorStandards);
         }
-      })
-      .catch(() => {});
+        setVehicleLabel(`${data.activeVehicle.make} ${data.activeVehicle.model}`);
+      } else {
+        setVehicleKind("car");
+        setVehicleConnectors([]);
+        setVehicleLabel(null);
+      }
+    } catch {
+      setVehicleKind("car");
+    } finally {
+      setVehicleProfileReady(true);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadVehicleProfile();
+  }, [loadVehicleProfile, pathname]);
+
+  useEffect(() => {
+    const onFocus = () => {
+      void loadVehicleProfile();
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [loadVehicleProfile]);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -332,7 +360,13 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
         </p>
       )}
 
-      {!loading && !isBike && (
+      {!vehicleProfileReady && (
+        <div className="flex h-24 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-sm text-slate-400">
+          Loading your vehicle profile…
+        </div>
+      )}
+
+      {vehicleProfileReady && !loading && !isBike && (
         <ChargerMap
           center={center}
           userLocation={userLocation}
@@ -344,7 +378,7 @@ export function ChargersView({ initialLat = 37.7749, initialLon = -122.4194 }: C
         />
       )}
 
-      {!loading && isBike && (
+      {vehicleProfileReady && !loading && isBike && (
         <p className="rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-sm text-slate-400">
           E-bikes usually charge at home or with a portable adapter. Use the list below for nearby
           Type 2 outlets — switch to a car in Settings to see the station map.

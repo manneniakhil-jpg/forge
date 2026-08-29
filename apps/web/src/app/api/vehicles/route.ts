@@ -11,6 +11,7 @@ import {
 import { validateSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { VEHICLE_CATALOG } from "@/lib/seed";
+import { resolveVehicleKind } from "@/lib/vehicle-kind";
 import { apiError, getAuthHeader, jsonOk } from "@/lib/api-helpers";
 
 function parseKind(value: unknown): VehicleKind {
@@ -31,7 +32,11 @@ export async function GET(request: NextRequest) {
       make: v.make,
       model: v.model,
       year: v.year,
-      vehicleKind: (v.vehicle_kind as VehicleKind) ?? "car",
+      vehicleKind: resolveVehicleKind({
+        vehicleKind: v.vehicle_kind as string | undefined,
+        batteryKwh: v.battery_kwh as number,
+        efficiencyWhKm: v.efficiency_wh_km as number,
+      }),
       batteryKwh: v.battery_kwh,
       connectorStandards: JSON.parse(v.connector_standards as string),
       efficiencyWhKm: v.efficiency_wh_km,
