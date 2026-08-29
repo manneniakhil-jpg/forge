@@ -108,11 +108,17 @@ export default function TripsPage() {
       });
       setPlan(data.plan);
     } catch (e) {
-      const err = e as { message?: string; code?: string };
+      const err = e as { message?: string; code?: string; fields?: Record<string, string> };
       if (err.code === "NO_VIABLE_ROUTE") {
-        setError(
-          "No viable route with your current charge and vehicle range. Try a closer destination or higher departure charge."
-        );
+        if (err.fields?.reason === "no_chargers_on_route") {
+          setError(
+            "No compatible chargers found along this route yet. Try a route within California, or a shorter distance."
+          );
+        } else {
+          setError(
+            "This trip exceeds your range even with charging stops. Try a closer destination or start with more charge."
+          );
+        }
       } else if (err.code === "ROUTING_UNAVAILABLE") {
         setError("Road routing is temporarily unavailable. Please try again in a moment.");
       } else {

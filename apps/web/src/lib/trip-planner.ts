@@ -7,7 +7,7 @@ import {
   type ConnectorStandard,
   type TripPlan,
 } from "@ev/domain";
-import { queryCorridor } from "./chargers";
+import { findNearestCompatibleStation, queryCorridor, sampleRoutePoints } from "./chargers";
 import {
   fetchRoadRoute,
   mergeRouteSegments,
@@ -110,41 +110,53 @@ export async function planTrip(
     totalDrivingMin += Math.round((driveBeforeChargeKm / route.distanceKm) * route.durationMin);
 
     const needChargeAt = pointAtDistance(route.coordinates, driveBeforeChargeKm);
+    const routeSamples = sampleRoutePoints(route.coordinates, driveBeforeChargeKm + 60);
 
-    const candidates = queryCorridor([needChargeAt], input.connectorStandards, 40)
-      .map((station) => ({
-        station,
-        dist: haversineKm(
-          needChargeAt.lat,
-          needChargeAt.lon,
-          station.latitude,
-          station.longitude
-        ),
-      }))
-      .sort((a, b) => a.dist - b.dist);
+    let nearest: { station: import("@ev/domain").ChargingStation; distanceKm: number } | null = null;
 
-    if (candidates.length === 0 || candidates[0].dist > 40) {
+    for (const radius of [50, 90, 150]) {
+      const alongRoute = queryCorridor(routeSamples, input.connectorStandards, radius)
+        .map((station) => ({
+          station,
+          distanceKm: haversineKm(
+            needChargeAt.lat,
+            needChargeAt.lon,
+            station.latitude,
+            station.longitude
+          ),
+        }))
+        .sort((a, b) => a.distanceKm - b.distanceKm);
+      if (alongRoute.length > 0) {
+        nearest = alongRoute[0];
+        break;
+      }
+      nearest = findNearestCompatibleStation(needChargeAt, input.connectorStandards, radius);
+      if (nearest) break;
+    }
+
+    if (!nearest) {
       return {
         error: "NO_VIABLE_ROUTE",
         details: {
-          longestLegKm: Math.round(route.distanceKm),
+          longestLegKm: Math.round(driveBeforeChargeKm),
           usableRangeKm: Math.round(usableRange),
+          reason: "no_chargers_on_route",
         },
       };
     }
 
-    const chosen = candidates[0].station;
+    const chosenStation = nearest.station;
     const legDist = driveBeforeChargeKm;
     const arrivalSoc = Math.max(
       input.reserveSocPct,
       socAfterDistance(currentSoc, legDist, input.batteryKwh, input.efficiencyWhKm)
     );
     const departureSoc = Math.min(80, Math.max(arrivalSoc + 25, input.reserveSocPct + 15));
-    const maxPower = Math.max(...chosen.connectors.map((c) => c.maxPowerKw));
+    const maxPower = Math.max(...chosenStation.connectors.map((c) => c.maxPowerKw));
 
     chargeStops.push({
-      stationId: chosen.id,
-      stationName: chosen.operatorName,
+      stationId: chosenStation.id,
+      stationName: chosenStation.operatorName,
       arrivalSocPct: arrivalSoc,
       departureSocPct: departureSoc,
       chargingDurationMin: estimateChargeDurationMin(
@@ -153,14 +165,14 @@ export async function planTrip(
         input.batteryKwh,
         maxPower
       ),
-      latitude: chosen.latitude,
-      longitude: chosen.longitude,
+      latitude: chosenStation.latitude,
+      longitude: chosenStation.longitude,
     });
 
     currentPos = {
-      lat: chosen.latitude,
-      lon: chosen.longitude,
-      label: chosen.operatorName,
+      lat: chosenStation.latitude,
+      lon: chosenStation.longitude,
+      label: chosenStation.operatorName,
     };
     currentSoc = departureSoc;
   }

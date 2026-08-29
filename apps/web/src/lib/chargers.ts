@@ -153,6 +153,7 @@ export function queryCorridor(
   }>;
 
   const results: ChargingStation[] = [];
+  const seen = new Set<string>();
 
   for (const row of allIds) {
     let minDist = Infinity;
@@ -163,15 +164,66 @@ export function queryCorridor(
     if (minDist > corridorKm) continue;
 
     const station = loadStation(row.id);
-    if (!station) continue;
+    if (!station || seen.has(station.id)) continue;
 
     const hasMatching = station.connectors.some(
       (c) =>
         connectorStandards.includes(c.standard) &&
         (c.availability === "Available" || c.availability === "Unknown")
     );
-    if (hasMatching) results.push(station);
+    if (hasMatching) {
+      seen.add(station.id);
+      results.push(station);
+    }
   }
 
   return results;
+}
+
+/** Sample points every ~40 km along route coordinates up to maxDistanceKm */
+export function sampleRoutePoints(
+  coordinates: Array<{ lat: number; lon: number }>,
+  maxDistanceKm?: number
+): Array<{ lat: number; lon: number }> {
+  if (coordinates.length === 0) return [];
+  const samples: Array<{ lat: number; lon: number }> = [coordinates[0]];
+  let accumulated = 0;
+  let nextSample = 40;
+
+  for (let i = 1; i < coordinates.length; i++) {
+    const seg = haversineKm(
+      coordinates[i - 1].lat,
+      coordinates[i - 1].lon,
+      coordinates[i].lat,
+      coordinates[i].lon
+    );
+    accumulated += seg;
+    if (maxDistanceKm !== undefined && accumulated > maxDistanceKm) break;
+    if (accumulated >= nextSample) {
+      samples.push(coordinates[i]);
+      nextSample += 40;
+    }
+  }
+
+  const last = coordinates[coordinates.length - 1];
+  const tail = samples[samples.length - 1];
+  if (!tail || tail.lat !== last.lat || tail.lon !== last.lon) {
+    samples.push(last);
+  }
+  return samples;
+}
+
+export function findNearestCompatibleStation(
+  point: { lat: number; lon: number },
+  connectorStandards: ConnectorStandard[],
+  maxDistanceKm: number
+): { station: ChargingStation; distanceKm: number } | null {
+  const candidates = queryCorridor([point], connectorStandards, maxDistanceKm)
+    .map((station) => ({
+      station,
+      distanceKm: haversineKm(point.lat, point.lon, station.latitude, station.longitude),
+    }))
+    .sort((a, b) => a.distanceKm - b.distanceKm);
+
+  return candidates[0] ?? null;
 }
