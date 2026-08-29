@@ -67,6 +67,10 @@ export default function TripsPage() {
       label: "San Francisco, California, United States",
     };
 
+    // Default immediately so the form is usable; upgrade if GPS succeeds.
+    setOrigin(sfDefault);
+    setOriginLoading(false);
+
     void (async () => {
       try {
         const point = await getCurrentLocation();
@@ -77,10 +81,7 @@ export default function TripsPage() {
           label: "Current location",
         });
       } catch {
-        if (cancelled) return;
-        setOrigin(sfDefault);
-      } finally {
-        if (!cancelled) setOriginLoading(false);
+        // Keep San Francisco default.
       }
     })();
 
@@ -154,7 +155,9 @@ export default function TripsPage() {
             hint={
               originLoading
                 ? "Detecting your location…"
-                : "Starting point — defaults to your location, but you can change it"
+                : origin?.label === "Current location"
+                  ? "Using your current location — change it anytime"
+                  : "Starting point — defaults to San Francisco until GPS is available"
             }
             placeholder="Search starting city or address…"
             value={origin}
