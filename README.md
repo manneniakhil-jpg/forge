@@ -52,8 +52,8 @@ Sample charging stations are seeded around the San Francisco Bay Area when Googl
 Charger search uses the **Google Places API (New)** when an API key is set. Without it, the app falls back to local demo seed data.
 
 1. Create a project in [Google Cloud Console](https://console.cloud.google.com/)
-2. Enable **Places API (New)**
-3. Create an API key and restrict it to Places API + your server IP/domain
+2. Enable **Places API (New)** and **Routes API**
+3. Create an API key and restrict it to Places API, Routes API, and your server IP/domain
 4. Add to `apps/web/.env.local`:
 
 ```bash
@@ -64,7 +64,9 @@ Restart the dev server after adding the key. The charger list subtitle will show
 
 Place search (Navigate and Find Chargers) uses **Google Places Autocomplete** with the same key when configured, biased toward your location. Falls back to OpenStreetMap Nominatim otherwise.
 
-Billing applies per Google’s [Places pricing](https://developers.google.com/maps/billing-and-pricing). Results are cached for 15 minutes per search area to limit cost.
+Trip drive times use the **Google Routes API** with `TRAFFIC_AWARE` routing when the key is set (Navigate shows **Drive time (with traffic)**). Without a key, drive times come from OSRM static estimates.
+
+Enable **Routes API** in the same Google Cloud project alongside Places API. Billing applies per Google’s [Maps pricing](https://developers.google.com/maps/billing-and-pricing). Charger results are cached for 15 minutes per search area to limit cost.
 
 ## Project structure
 

@@ -1,11 +1,15 @@
 import { haversineKm } from "@ev/domain";
+import { computeGoogleRoute, isGoogleRoutingConfigured } from "./google-routing";
 
 const OSRM_BASE = process.env.OSRM_BASE_URL ?? "https://router.project-osrm.org";
+
+export type RoutingSource = "google_routes" | "osrm";
 
 export interface RoadRoute {
   distanceKm: number;
   durationMin: number;
   coordinates: Array<{ lat: number; lon: number }>;
+  routingSource: RoutingSource;
 }
 
 export interface OsrmManeuver {
@@ -19,6 +23,7 @@ export interface OsrmStep {
   distance: number;
   duration: number;
   maneuver: OsrmManeuver;
+  instruction?: string;
 }
 
 export interface OsrmLeg {
@@ -54,6 +59,22 @@ type OsrmRouteJson = {
   }>;
 };
 
+function simplifyCoordinates(
+  coords: Array<{ lat: number; lon: number }>,
+  maxPoints: number
+): Array<{ lat: number; lon: number }> {
+  if (coords.length <= maxPoints) return coords;
+  const step = Math.ceil(coords.length / maxPoints);
+  const result: Array<{ lat: number; lon: number }> = [];
+  for (let i = 0; i < coords.length; i += step) {
+    result.push(coords[i]);
+  }
+  const last = coords[coords.length - 1];
+  const tail = result[result.length - 1];
+  if (!tail || tail.lat !== last.lat || tail.lon !== last.lon) result.push(last);
+  return result;
+}
+
 function parseOsrmRoute(
   route: NonNullable<OsrmRouteJson["routes"]>[0],
   fallback: Array<{ lat: number; lon: number }>
@@ -83,6 +104,7 @@ function parseOsrmRoute(
     coordinates: simplifyCoordinates(coordinates, 500),
     distanceKm: route.distance / 1000,
     durationMin: Math.round(route.duration / 60),
+    routingSource: "osrm",
     legs,
   };
 }
@@ -92,7 +114,7 @@ function buildOsrmUrl(points: Array<{ lat: number; lon: number }>, steps: boolea
   return `${OSRM_BASE}/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=${steps ? "true" : "false"}`;
 }
 
-export async function fetchRoadRoute(
+async function fetchOsrmRoute(
   from: { lat: number; lon: number },
   to: { lat: number; lon: number }
 ): Promise<RoadRoute | { error: string }> {
@@ -120,13 +142,34 @@ export async function fetchRoadRoute(
       distanceKm: route.distance / 1000,
       durationMin: Math.round(route.duration / 60),
       coordinates: simplifyCoordinates(coords, 150),
+      routingSource: "osrm",
     };
   } catch {
     return { error: "ROUTING_UNAVAILABLE" };
   }
 }
 
-export async function fetchRoadRouteWithSteps(
+/** Traffic-aware driving route when Google is configured; otherwise OSRM. */
+export async function fetchRoadRoute(
+  from: { lat: number; lon: number },
+  to: { lat: number; lon: number }
+): Promise<RoadRoute | { error: string }> {
+  if (isGoogleRoutingConfigured()) {
+    const google = await computeGoogleRoute(from, to);
+    if (google) {
+      return {
+        distanceKm: google.distanceKm,
+        durationMin: google.durationMin,
+        coordinates: simplifyCoordinates(google.coordinates, 150),
+        routingSource: "google_routes",
+      };
+    }
+  }
+
+  return fetchOsrmRoute(from, to);
+}
+
+async function fetchOsrmRouteWithSteps(
   origin: { lat: number; lon: number },
   destination: { lat: number; lon: number },
   waypoints: Array<{ lat: number; lon: number }> = []
@@ -153,20 +196,41 @@ export async function fetchRoadRouteWithSteps(
   }
 }
 
-function simplifyCoordinates(
-  coords: Array<{ lat: number; lon: number }>,
-  maxPoints: number
-): Array<{ lat: number; lon: number }> {
-  if (coords.length <= maxPoints) return coords;
-  const step = Math.ceil(coords.length / maxPoints);
-  const result: Array<{ lat: number; lon: number }> = [];
-  for (let i = 0; i < coords.length; i += step) {
-    result.push(coords[i]);
+export async function fetchRoadRouteWithSteps(
+  origin: { lat: number; lon: number },
+  destination: { lat: number; lon: number },
+  waypoints: Array<{ lat: number; lon: number }> = []
+): Promise<RoadRouteWithSteps | { error: string }> {
+  if (isGoogleRoutingConfigured()) {
+    const google = await computeGoogleRoute(origin, destination, waypoints);
+    if (google) {
+      const legs: OsrmLeg[] = google.legs.map((leg) => ({
+        distance: leg.distanceM,
+        duration: leg.durationS,
+        steps: leg.steps.map((step) => ({
+          name: step.roadName,
+          distance: step.distanceM,
+          duration: step.durationS,
+          instruction: step.instruction,
+          maneuver: {
+            type: step.maneuverType,
+            modifier: step.maneuverModifier,
+            location: step.location,
+          },
+        })),
+      }));
+
+      return {
+        distanceKm: google.distanceKm,
+        durationMin: google.durationMin,
+        coordinates: simplifyCoordinates(google.coordinates, 500),
+        routingSource: "google_routes",
+        legs,
+      };
+    }
   }
-  const last = coords[coords.length - 1];
-  const tail = result[result.length - 1];
-  if (!tail || tail.lat !== last.lat || tail.lon !== last.lon) result.push(last);
-  return result;
+
+  return fetchOsrmRouteWithSteps(origin, destination, waypoints);
 }
 
 export function findRouteIndexAtDistance(
@@ -215,4 +279,8 @@ export function socAfterDistance(
 ): number {
   const loss = (distanceKm * efficiencyWhKm) / ((batteryKwh * 1000) / 100);
   return Math.round(startSoc - loss);
+}
+
+export function preferredRoutingSource(): RoutingSource {
+  return isGoogleRoutingConfigured() ? "google_routes" : "osrm";
 }

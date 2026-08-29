@@ -18,6 +18,7 @@ import {
   fetchRoadRoute,
   mergeRouteSegments,
   pointAtDistance,
+  preferredRoutingSource,
   socAfterDistance,
 } from "./routing";
 
@@ -106,7 +107,7 @@ function buildPlan(
     destinationSocPct: Math.max(input.reserveSocPct, destSoc),
     reserveSocPct: input.reserveSocPct,
     routeCoordinates: merged.map((p) => [p.lat, p.lon] as [number, number]),
-    routingSource: "osrm",
+    routingSource: preferredRoutingSource(),
   };
 }
 

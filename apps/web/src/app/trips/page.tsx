@@ -326,7 +326,10 @@ export default function TripsPage() {
               <p className="font-semibold">{plan.totalDistanceKm} km</p>
             </div>
             <div>
-              <p className="text-slate-400">Drive time</p>
+              <p className="text-slate-400">
+                Drive time
+                {plan.routingSource === "google_routes" ? " (with traffic)" : ""}
+              </p>
               <p className="font-semibold">{plan.totalDrivingMin} min</p>
             </div>
             <div>

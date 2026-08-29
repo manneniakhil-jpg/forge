@@ -127,11 +127,9 @@ export async function buildTripNavigation(plan: TripPlan): Promise<TripNavigatio
   for (const leg of route.legs) {
     for (const step of leg.steps) {
       steps.push({
-        instruction: maneuverInstruction(
-          step.maneuver.type,
-          step.maneuver.modifier,
-          step.name,
-        ),
+        instruction:
+          step.instruction ??
+          maneuverInstruction(step.maneuver.type, step.maneuver.modifier, step.name),
         distanceM: step.distance,
         durationS: step.duration,
         roadName: step.name,

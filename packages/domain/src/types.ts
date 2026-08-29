@@ -94,7 +94,7 @@ export interface TripPlan {
   degradedLegs?: number[];
   /** Lat/lon pairs for map display */
   routeCoordinates?: Array<[number, number]>;
-  routingSource?: "osrm" | "direct";
+  routingSource?: "osrm" | "google_routes" | "direct";
 }
 
 export interface ApiError {
