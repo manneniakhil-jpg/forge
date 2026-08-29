@@ -83,21 +83,27 @@
 
     <main class="page">
       <div class="brand-logo" aria-hidden="true">
-        <svg class="logo-mark" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="50" cy="50" r="44" class="ring-bg" />
-          <circle cx="50" cy="50" r="44" class="ring-fill" />
-          <!-- Route arrow + lightning in one mark -->
-          <path
-            class="logo-symbol"
-            d="M50 22 L42 38 H48 L44 54 L50 46 L56 54 L52 38 H58 L50 22 Z"
-            fill="url(#markGradient)"
-          />
-          <circle class="logo-node" cx="50" cy="18" r="3.5" fill="#00e5ff" />
+        <svg class="logo-mark" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="24" cy="24" r="21" class="ring-bg" />
+          <circle cx="24" cy="24" r="21" class="ring-fill" />
+          <!-- EV silhouette + forward arrow — one compact mark -->
+          <g class="logo-symbol">
+            <path
+              d="M9 27.5 L12.5 23.5 Q16.5 20.5 21.5 20.5 H27.5 L33.5 16 L31.5 20.5 H35.5 L32 25.5 L27.5 24 H21.5 Q16.5 24 12.5 27 Z"
+              fill="url(#markGradient)"
+            />
+            <circle cx="16" cy="28.5" r="2.2" fill="#041018" stroke="url(#markGradient)" stroke-width="1.4" />
+            <circle cx="28.5" cy="28.5" r="2.2" fill="#041018" stroke="url(#markGradient)" stroke-width="1.4" />
+          </g>
           <defs>
-            <linearGradient id="markGradient" x1="42" y1="22" x2="58" y2="54" gradientUnits="userSpaceOnUse">
+            <linearGradient id="markGradient" x1="9" y1="16" x2="35.5" y2="28.5" gradientUnits="userSpaceOnUse">
               <stop stop-color="#00e5ff" />
               <stop offset="0.55" stop-color="#39ff14" />
               <stop offset="1" stop-color="#ffe566" />
+            </linearGradient>
+            <linearGradient id="ringGradient" x1="3" y1="3" x2="45" y2="45" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#00e5ff" />
+              <stop offset="1" stop-color="#39ff14" />
             </linearGradient>
           </defs>
         </svg>
