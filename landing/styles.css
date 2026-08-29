@@ -322,8 +322,22 @@ body {
   bottom: 1.25rem;
   left: 0;
   right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
   font-size: 0.78rem;
   color: var(--muted);
+}
+
+.footer-contact {
+  font-size: 0.82rem;
+  color: rgba(126, 184, 212, 0.9);
+}
+
+.footer-contact a {
+  margin-left: 0.35rem;
+  font-weight: 500;
 }
 
 .footer a {
