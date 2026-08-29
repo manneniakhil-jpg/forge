@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     .prepare("SELECT * FROM vehicles WHERE id = ?")
     .get(account.active_vehicle_id) as Record<string, unknown>;
 
-  const result = planTrip({
+  const result = await planTrip({
     origin: { lat: origin.lat, lon: origin.lon, label: origin.label ?? "Origin" },
     destination: {
       lat: destination.lat,

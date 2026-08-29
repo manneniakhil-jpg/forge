@@ -88,6 +88,9 @@ export interface TripPlan {
   destinationSocPct: number;
   reserveSocPct: number;
   degradedLegs?: number[];
+  /** Lat/lon pairs for map display */
+  routeCoordinates?: Array<[number, number]>;
+  routingSource?: "osrm" | "direct";
 }
 
 export interface ApiError {
