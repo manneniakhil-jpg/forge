@@ -10,8 +10,9 @@ import { TripNavigationPanel } from "@/components/trip-navigation-panel";
 import { PlaceSearchField, type GeocodeHit } from "@/components/place-search-field";
 import { chargeStopReason } from "@/lib/trip-station-scoring";
 import { getCurrentLocation } from "@/lib/geolocation";
-import { loadRecentDestination, saveRecentDestination } from "@/lib/home-storage";
+import { loadRecentDestinations, saveRecentDestination, type SavedPlace } from "@/lib/home-storage";
 import { SavedTripsList } from "@/components/saved-trips-list";
+import { RecentSearches } from "@/components/recent-searches";
 import { apiFetch, getAuthToken } from "@/lib/utils";
 import type { TripPlan } from "@ev/domain";
 
@@ -54,6 +55,7 @@ export default function TripsPage() {
   const [error, setError] = useState<string | null>(null);
   const [originLocating, setOriginLocating] = useState(true);
   const [swapStopIndex, setSwapStopIndex] = useState<number | null>(null);
+  const [recentSearches, setRecentSearches] = useState<SavedPlace[]>([]);
   const planRequestRef = useRef(0);
   const skipAutoPlanRef = useRef(false);
   const departureSocRef = useRef(departureSoc);
@@ -117,10 +119,7 @@ export default function TripsPage() {
   }, [router]);
 
   useEffect(() => {
-    const recent = loadRecentDestination();
-    if (recent) {
-      setDestination((current) => current ?? recent);
-    }
+    setRecentSearches(loadRecentDestinations());
   }, []);
 
   const runPlan = useCallback(
@@ -150,6 +149,7 @@ export default function TripsPage() {
         setSelectedPlanIndex(0);
         setPlan(options[0]);
         saveRecentDestination({ lat: to.lat, lon: to.lon, label: to.label });
+        setRecentSearches(loadRecentDestinations());
       } catch (e) {
         if (requestId !== planRequestRef.current) return;
         const err = e as { message?: string; code?: string; fields?: Record<string, string> };
@@ -230,6 +230,14 @@ export default function TripsPage() {
     }
   };
 
+  const handleRecentSearchSelect = (place: SavedPlace) => {
+    handleDestinationChange({
+      lat: place.lat,
+      lon: place.lon,
+      label: place.label,
+    });
+  };
+
   return (
     <div className="space-y-5">
       <div>
@@ -241,9 +249,7 @@ export default function TripsPage() {
         </p>
       </div>
 
-      <SavedTripsList onSelect={(id) => void loadSavedTrip(id)} />
-
-      <Card className="space-y-5">
+      <Card className="space-y-4">
         <PlaceSearchField
           id="destination"
           label="Where to?"
@@ -255,6 +261,16 @@ export default function TripsPage() {
           locationBias={origin ?? navUserLocation}
         />
 
+        <RecentSearches
+          places={recentSearches}
+          onSelect={handleRecentSearchSelect}
+          activePlace={destination}
+        />
+      </Card>
+
+      <SavedTripsList onSelect={(id) => void loadSavedTrip(id)} />
+
+      <Card className="space-y-5">
         <PlaceSearchField
           id="origin"
           label="From"
