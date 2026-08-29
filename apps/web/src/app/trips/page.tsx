@@ -142,8 +142,8 @@ export default function TripsPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold">Plan a trip</h1>
-        <p className="text-slate-400">Set your start and end — search any city or address</p>
+        <h1 className="text-2xl font-bold">Navigate</h1>
+        <p className="text-slate-400">Plan a route with charge stops and turn-by-turn directions</p>
       </div>
 
       <Card className="space-y-5">
