@@ -52,10 +52,13 @@ export function PlaceSearchField({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (value && !query) {
-      setQuery(value.label.split(",").slice(0, 3).join(","));
-    }
-  }, [value, query]);
+    if (!value) return;
+    const display =
+      value.label === "Current location"
+        ? "Current location"
+        : value.label.split(",").slice(0, 3).join(",");
+    setQuery(display);
+  }, [value]);
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
@@ -214,10 +217,10 @@ export function PlaceSearchField({
                 key={place}
                 type="button"
                 onClick={() => {
-                  setQuery(place);
-                  runSearch(place, true);
+                  void runSearch(place, true);
                 }}
-                className="min-h-[32px] rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-emerald-600 hover:text-emerald-300"
+                disabled={searching}
+                className="min-h-[32px] rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-emerald-600 hover:text-emerald-300 disabled:opacity-50"
               >
                 {place.split(",")[0]}
               </button>

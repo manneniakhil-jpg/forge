@@ -54,6 +54,7 @@ export default function TripsPage() {
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [originLoading, setOriginLoading] = useState(true);
 
   useEffect(() => {
     if (!getAuthToken()) router.replace("/auth");
@@ -66,6 +67,7 @@ export default function TripsPage() {
             lon: pos.coords.longitude,
             label: "Current location",
           });
+          setOriginLoading(false);
         },
         () => {
           setOrigin({
@@ -73,6 +75,7 @@ export default function TripsPage() {
             lon: -122.4194,
             label: "San Francisco, California, United States",
           });
+          setOriginLoading(false);
         }
       );
     } else {
@@ -81,6 +84,7 @@ export default function TripsPage() {
         lon: -122.4194,
         label: "San Francisco, California, United States",
       });
+      setOriginLoading(false);
     }
   }, [router]);
 
@@ -146,7 +150,11 @@ export default function TripsPage() {
           <PlaceSearchField
             id="origin"
             label="From"
-            hint="Starting point — defaults to your location, but you can change it"
+            hint={
+              originLoading
+                ? "Detecting your location…"
+                : "Starting point — defaults to your location, but you can change it"
+            }
             placeholder="Search starting city or address…"
             value={origin}
             onChange={setOrigin}
