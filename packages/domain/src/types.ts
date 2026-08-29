@@ -75,6 +75,10 @@ export interface ChargeStop {
   chargingDurationMin: number;
   latitude: number;
   longitude: number;
+  maxPowerKw?: number;
+  connectorStandard?: ConnectorStandard;
+  availability?: AvailabilityStatus;
+  detourKm?: number;
 }
 
 export interface TripPlan {

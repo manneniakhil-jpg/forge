@@ -9,6 +9,10 @@ import {
 } from "@ev/domain";
 import { findNearestCompatibleStation, queryCorridor, sampleRoutePoints } from "./chargers";
 import {
+  bestCompatibleConnector,
+  pickBestStation,
+} from "./trip-station-scoring";
+import {
   fetchRoadRoute,
   mergeRouteSegments,
   pointAtDistance,
@@ -111,12 +115,17 @@ export async function planTrip(
 
     const needChargeAt = pointAtDistance(route.coordinates, driveBeforeChargeKm);
     const routeSamples = sampleRoutePoints(route.coordinates, driveBeforeChargeKm + 60);
+    const legDist = driveBeforeChargeKm;
+    const arrivalSoc = Math.max(
+      input.reserveSocPct,
+      socAfterDistance(currentSoc, legDist, input.batteryKwh, input.efficiencyWhKm)
+    );
 
     let nearest: { station: import("@ev/domain").ChargingStation; distanceKm: number } | null = null;
 
     for (const radius of [50, 90, 150]) {
-      const alongRoute = queryCorridor(routeSamples, input.connectorStandards, radius)
-        .map((station) => ({
+      const alongRoute = queryCorridor(routeSamples, input.connectorStandards, radius).map(
+        (station) => ({
           station,
           distanceKm: haversineKm(
             needChargeAt.lat,
@@ -124,13 +133,32 @@ export async function planTrip(
             station.latitude,
             station.longitude
           ),
-        }))
-        .sort((a, b) => a.distanceKm - b.distanceKm);
+        })
+      );
       if (alongRoute.length > 0) {
-        nearest = alongRoute[0];
+        nearest = pickBestStation(
+          alongRoute,
+          needChargeAt,
+          input.connectorStandards,
+          arrivalSoc,
+          input.reserveSocPct
+        );
         break;
       }
-      nearest = findNearestCompatibleStation(needChargeAt, input.connectorStandards, radius);
+      const fallback = findNearestCompatibleStation(
+        needChargeAt,
+        input.connectorStandards,
+        radius
+      );
+      if (fallback) {
+        nearest = pickBestStation(
+          [fallback],
+          needChargeAt,
+          input.connectorStandards,
+          arrivalSoc,
+          input.reserveSocPct
+        );
+      }
       if (nearest) break;
     }
 
@@ -146,13 +174,9 @@ export async function planTrip(
     }
 
     const chosenStation = nearest.station;
-    const legDist = driveBeforeChargeKm;
-    const arrivalSoc = Math.max(
-      input.reserveSocPct,
-      socAfterDistance(currentSoc, legDist, input.batteryKwh, input.efficiencyWhKm)
-    );
     const departureSoc = Math.min(80, Math.max(arrivalSoc + 25, input.reserveSocPct + 15));
-    const maxPower = Math.max(...chosenStation.connectors.map((c) => c.maxPowerKw));
+    const connector = bestCompatibleConnector(chosenStation, input.connectorStandards);
+    const maxPower = connector?.maxPowerKw ?? Math.max(...chosenStation.connectors.map((c) => c.maxPowerKw));
 
     chargeStops.push({
       stationId: chosenStation.id,
@@ -167,6 +191,10 @@ export async function planTrip(
       ),
       latitude: chosenStation.latitude,
       longitude: chosenStation.longitude,
+      maxPowerKw: connector?.maxPowerKw ?? maxPower,
+      connectorStandard: connector?.standard,
+      availability: connector?.availability,
+      detourKm: Math.round(nearest.distanceKm * 10) / 10,
     });
 
     currentPos = {

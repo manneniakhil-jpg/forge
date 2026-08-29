@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { Route } from "lucide-react";
+import { ChevronDown, ChevronUp, Route } from "lucide-react";
 import { Button, Card, Input, Label } from "@/components/ui";
 import { TripNavigationPanel } from "@/components/trip-navigation-panel";
 import { PlaceSearchField, type GeocodeHit } from "@/components/place-search-field";
+import { chargeStopReason } from "@/lib/trip-station-scoring";
 import { getCurrentLocation } from "@/lib/geolocation";
 import { apiFetch, getAuthToken } from "@/lib/utils";
 import type { TripPlan } from "@ev/domain";
@@ -23,25 +24,16 @@ const TripRouteMap = dynamic(
   }
 );
 
-const POPULAR_ORIGINS = [
-  "San Francisco, California",
-  "San Jose, California",
-  "Oakland, California",
-  "Los Angeles, California",
-  "Seattle, Washington",
-];
+function originLabel(origin: GeocodeHit | null): string {
+  if (!origin) return "Getting your location…";
+  if (origin.label === "Current location") return "Current location";
+  return origin.label.split(",").slice(0, 2).join(",");
+}
 
-const POPULAR_DESTINATIONS = [
-  "San Diego, California",
-  "Los Angeles, California",
-  "Las Vegas, Nevada",
-  "Sacramento, California",
-  "Lake Tahoe, California",
-  "Monterey, California",
-  "Portland, Oregon",
-  "Seattle, Washington",
-  "Denver, Colorado",
-];
+function destinationLabel(destination: GeocodeHit | null): string {
+  if (!destination) return "";
+  return destination.label.split(",").slice(0, 2).join(",");
+}
 
 export default function TripsPage() {
   const router = useRouter();
@@ -55,33 +47,61 @@ export default function TripsPage() {
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [originLoading, setOriginLoading] = useState(true);
+  const [showOriginEditor, setShowOriginEditor] = useState(false);
+  const [originLocating, setOriginLocating] = useState(true);
+  const planRequestRef = useRef(0);
+  const departureSocRef = useRef(departureSoc);
+  const reserveSocRef = useRef(reserveSoc);
+  departureSocRef.current = departureSoc;
+  reserveSocRef.current = reserveSoc;
 
   useEffect(() => {
     if (!getAuthToken()) router.replace("/auth");
 
     let cancelled = false;
-    const sfDefault: GeocodeHit = {
-      lat: 37.7749,
-      lon: -122.4194,
-      label: "San Francisco, California, United States",
-    };
 
-    // Default immediately so the form is usable; upgrade if GPS succeeds.
-    setOrigin(sfDefault);
-    setOriginLoading(false);
+    void (async () => {
+      try {
+        const me = await apiFetch<{
+          activeVehicle: { id: string } | null;
+          account: { reserveSoc: number };
+        }>("/api/me");
+        if (cancelled) return;
+        setReserveSoc(String(me.account.reserveSoc ?? 10));
+        if (me.activeVehicle) {
+          const vehicle = await apiFetch<{ state: { socPct: number | null } }>(
+            `/api/vehicles/${me.activeVehicle.id}`
+          );
+          if (!cancelled && vehicle.state.socPct != null) {
+            setDepartureSoc(String(Math.round(vehicle.state.socPct)));
+          }
+        }
+      } catch {
+        // Keep defaults.
+      }
+    })();
 
     void (async () => {
       try {
         const point = await getCurrentLocation();
         if (cancelled) return;
-        setOrigin({
+        const hit: GeocodeHit = {
           lat: point.lat,
           lon: point.lon,
           label: "Current location",
-        });
+        };
+        setOrigin(hit);
+        setNavUserLocation(point);
       } catch {
-        // Keep San Francisco default.
+        if (cancelled) return;
+        setOrigin({
+          lat: 37.7749,
+          lon: -122.4194,
+          label: "San Francisco, California, United States",
+        });
+        setError("Could not detect your location — using San Francisco as the starting point.");
+      } finally {
+        if (!cancelled) setOriginLocating(false);
       }
     })();
 
@@ -90,127 +110,174 @@ export default function TripsPage() {
     };
   }, [router]);
 
-  const planTrip = async () => {
-    setError(null);
-    let from = origin;
-    let to = destination;
+  const runPlan = useCallback(
+    async (from: GeocodeHit, to: GeocodeHit) => {
+      const requestId = ++planRequestRef.current;
+      setLoading(true);
+      setError(null);
+      setPlan(null);
+      setNavUserLocation(from.label === "Current location" ? { lat: from.lat, lon: from.lon } : null);
 
-    if (!from) {
-      setError("Choose a starting point.");
-      return;
-    }
-    if (!to) {
-      setError("Choose a destination from the search results.");
-      return;
-    }
-
-    setLoading(true);
-    setPlan(null);
-    setNavUserLocation(null);
-    try {
-      const data = await apiFetch<{ plan: TripPlan }>("/api/trips", {
-        method: "POST",
-        body: JSON.stringify({
-          origin: { lat: from.lat, lon: from.lon, label: from.label },
-          destination: { lat: to.lat, lon: to.lon, label: to.label },
-          departureSocPct: parseInt(departureSoc),
-          reserveSocPct: parseInt(reserveSoc),
-        }),
-      });
-      setPlan(data.plan);
-    } catch (e) {
-      const err = e as { message?: string; code?: string; fields?: Record<string, string> };
-      if (err.code === "NO_VIABLE_ROUTE") {
-        if (err.fields?.reason === "no_chargers_on_route") {
-          setError(
-            "No compatible chargers found along this route yet. Try a route within California, or a shorter distance."
-          );
+      try {
+        const data = await apiFetch<{ plan: TripPlan }>("/api/trips", {
+          method: "POST",
+          body: JSON.stringify({
+            origin: { lat: from.lat, lon: from.lon, label: from.label },
+            destination: { lat: to.lat, lon: to.lon, label: to.label },
+            departureSocPct: parseInt(departureSocRef.current, 10),
+            reserveSocPct: parseInt(reserveSocRef.current, 10),
+          }),
+        });
+        if (requestId !== planRequestRef.current) return;
+        setPlan(data.plan);
+      } catch (e) {
+        if (requestId !== planRequestRef.current) return;
+        const err = e as { message?: string; code?: string; fields?: Record<string, string> };
+        if (err.code === "NO_VIABLE_ROUTE") {
+          if (err.fields?.reason === "no_chargers_on_route") {
+            setError(
+              "No compatible chargers found along this route yet. Try a route within California, or a shorter distance."
+            );
+          } else {
+            setError(
+              "This trip exceeds your range even with charging stops. Try a closer destination, a different start point, or more charge."
+            );
+          }
+        } else if (err.code === "ROUTING_UNAVAILABLE") {
+          setError("Road routing is temporarily unavailable. Please try again in a moment.");
         } else {
-          setError(
-            "This trip exceeds your range even with charging stops. Try a closer destination or start with more charge."
-          );
+          setError(err.message || "Could not plan route");
         }
-      } else if (err.code === "ROUTING_UNAVAILABLE") {
-        setError("Road routing is temporarily unavailable. Please try again in a moment.");
-      } else {
-        setError(err.message || "Could not plan trip");
+      } finally {
+        if (requestId === planRequestRef.current) setLoading(false);
       }
-    } finally {
-      setLoading(false);
+    },
+    []
+  );
+
+  const handleDestinationChange = (hit: GeocodeHit | null) => {
+    setDestination(hit);
+    setShowOriginEditor(false);
+    setPlan(null);
+  };
+
+  const handleOriginChange = (hit: GeocodeHit | null) => {
+    setOrigin(hit);
+    if (hit?.label === "Current location") {
+      setNavUserLocation({ lat: hit.lat, lon: hit.lon });
     }
   };
+
+  useEffect(() => {
+    if (!destination || !origin || originLocating) return;
+    void runPlan(origin, destination);
+  }, [origin?.lat, origin?.lon, destination?.lat, destination?.lon, originLocating, destination, origin, runPlan]);
 
   return (
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold">Navigate</h1>
-        <p className="text-slate-400">Plan a route with charge stops and turn-by-turn directions</p>
+        <p className="text-slate-400">
+          {destination
+            ? `Route from ${originLabel(origin)} to ${destinationLabel(destination)}`
+            : "Where do you want to go?"}
+        </p>
       </div>
 
       <Card className="space-y-5">
-        <div className="relative z-10">
-          <PlaceSearchField
-            id="origin"
-            label="From"
-            hint={
-              originLoading
-                ? "Detecting your location…"
-                : origin?.label === "Current location"
-                  ? "Using your current location — change it anytime"
-                  : "Starting point — defaults to San Francisco until GPS is available"
-            }
-            placeholder="Search starting city or address…"
-            value={origin}
-            onChange={setOrigin}
-            onError={setError}
-            quickPicks={POPULAR_ORIGINS}
-            quickPicksLabel="Popular starting points"
-            showLocateMe
-          />
-        </div>
+        <PlaceSearchField
+          id="destination"
+          label="Where to?"
+          hint="Search your destination — we'll route from your current location"
+          placeholder="City, address, or landmark…"
+          value={destination}
+          onChange={handleDestinationChange}
+          onError={setError}
+        />
 
-        <div className="relative z-0">
-          <PlaceSearchField
-            id="destination"
-            label="To"
-            hint="Type any place worldwide"
-            placeholder="Search destination city or address…"
-            value={destination}
-            onChange={setDestination}
-            onError={setError}
-            quickPicks={POPULAR_DESTINATIONS}
-            quickPicksLabel="Popular destinations"
-          />
-        </div>
+        {destination && (
+          <div className="rounded-xl border border-slate-700 bg-slate-950/50 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 space-y-1 text-sm">
+                <p className="text-slate-500">From</p>
+                <p className="font-medium text-slate-100">{originLabel(origin)}</p>
+                <p className="text-slate-500">To</p>
+                <p className="font-medium text-emerald-300">{destinationLabel(destination)}</p>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowOriginEditor((open) => !open)}
+              >
+                {showOriginEditor ? (
+                  <>
+                    <ChevronUp className="h-4 w-4" />
+                    Hide
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-4 w-4" />
+                    Change start
+                  </>
+                )}
+              </Button>
+            </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label htmlFor="departureSoc">Departure charge (%)</Label>
-            <Input
-              id="departureSoc"
-              type="number"
-              min={1}
-              max={100}
-              value={departureSoc}
-              onChange={(e) => setDepartureSoc(e.target.value)}
-            />
+            {showOriginEditor && (
+              <div className="relative z-10 mt-4 border-t border-slate-800 pt-4">
+                <PlaceSearchField
+                  id="origin"
+                  label="Starting point"
+                  hint="Pick a different place to start from"
+                  placeholder="Search starting city or address…"
+                  value={origin}
+                  onChange={handleOriginChange}
+                  onError={setError}
+                  showLocateMe
+                />
+              </div>
+            )}
           </div>
-          <div>
-            <Label htmlFor="reserveSoc">Reserve charge (%)</Label>
-            <Input
-              id="reserveSoc"
-              type="number"
-              min={5}
-              max={40}
-              value={reserveSoc}
-              onChange={(e) => setReserveSoc(e.target.value)}
-            />
-          </div>
-        </div>
+        )}
 
-        <Button className="w-full" onClick={planTrip} disabled={loading || !origin || !destination}>
-          {loading ? "Planning route…" : "Plan trip"}
-        </Button>
+        {destination && (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="departureSoc">Current charge (%)</Label>
+                <Input
+                  id="departureSoc"
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={departureSoc}
+                  onChange={(e) => setDepartureSoc(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="reserveSoc">Reserve charge (%)</Label>
+                <Input
+                  id="reserveSoc"
+                  type="number"
+                  min={5}
+                  max={40}
+                  value={reserveSoc}
+                  onChange={(e) => setReserveSoc(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <Button
+              className="w-full"
+              variant="secondary"
+              onClick={() => origin && destination && runPlan(origin, destination)}
+              disabled={loading || !origin || !destination}
+            >
+              {loading ? "Updating route…" : "Update route for charge levels"}
+            </Button>
+          </>
+        )}
       </Card>
 
       {error && (
@@ -219,11 +286,15 @@ export default function TripsPage() {
         </p>
       )}
 
+      {loading && !plan && destination && (
+        <p className="text-center text-slate-400">Planning your route and charge stops…</p>
+      )}
+
       {plan && (
         <Card className="space-y-4">
           <div className="flex items-center gap-2">
             <Route className="h-5 w-5 text-emerald-400" />
-            <h2 className="text-lg font-bold">Your trip plan</h2>
+            <h2 className="text-lg font-bold">Your route</h2>
           </div>
 
           <TripRouteMap plan={plan} userLocation={navUserLocation} />
@@ -256,19 +327,37 @@ export default function TripsPage() {
           {plan.chargeStops.length === 0 ? (
             <p className="text-sm text-emerald-300">No charging stops needed — you have enough range!</p>
           ) : (
-            <ol className="space-y-3">
-              {plan.chargeStops.map((stop, i) => (
-                <li key={stop.stationId} className="rounded-xl border border-slate-700 p-3">
-                  <p className="font-medium">
-                    Stop {i + 1}: {stop.stationName}
-                  </p>
-                  <p className="text-sm text-slate-400">
-                    Arrive {stop.arrivalSocPct}% → Depart {stop.departureSocPct}% ·{" "}
-                    {stop.chargingDurationMin} min
-                  </p>
-                </li>
-              ))}
-            </ol>
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-slate-300">
+                Recommended charge stops for your battery level
+              </p>
+              <ol className="space-y-3">
+                {plan.chargeStops.map((stop, i) => (
+                  <li key={stop.stationId} className="rounded-xl border border-slate-700 p-3">
+                    <p className="font-medium">
+                      Stop {i + 1}: {stop.stationName}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-400">
+                      Arrive {stop.arrivalSocPct}% → Depart {stop.departureSocPct}% ·{" "}
+                      {stop.chargingDurationMin} min
+                      {stop.maxPowerKw ? ` · ${stop.maxPowerKw} kW` : ""}
+                      {stop.connectorStandard ? ` ${stop.connectorStandard}` : ""}
+                    </p>
+                    {stop.maxPowerKw && stop.availability && stop.detourKm != null && (
+                      <p className="mt-2 text-xs text-emerald-300/90">
+                        {chargeStopReason(
+                          stop.arrivalSocPct,
+                          plan.reserveSocPct,
+                          stop.maxPowerKw,
+                          stop.availability,
+                          stop.detourKm
+                        )}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </div>
           )}
         </Card>
       )}
