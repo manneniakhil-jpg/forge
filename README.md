@@ -106,7 +106,7 @@ The app uses SQLite for accounts and sessions, so deploy to a platform with **pe
 5. Set environment variables: `DATA_DIR=/data` and `GOOGLE_MAPS_API_KEY=<your Places API key>`
 6. Generate a public domain under **Settings → Networking**.
 
-Your live URL will look like `https://drieev.com` once the domain is pointed at your host (Railway, Render, etc.).
+Your live URL will be `https://drieEV.com` once the domain is pointed at your host (Railway, Render, etc.).
 
 ### Option B: Render
 
