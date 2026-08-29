@@ -163,7 +163,7 @@ body {
 
 .ring-fill {
   fill: none;
-  stroke: url(#ringGradient);
+  stroke: var(--electric-blue);
   stroke-width: 4;
   stroke-linecap: round;
   stroke-dasharray: 276;
